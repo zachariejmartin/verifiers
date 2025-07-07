@@ -20,9 +20,18 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
+
 dependencies = [
-    "torch>=2.7.0",
     "setuptools",
+    "requests",
+    "openai",
+    "datasets",
+]
+
+[project.optional-dependencies]
+all = [
+    "torch>=2.6.0",
+    "transformers",
     "accelerate>=1.4.0",
     "peft",
     "wandb",
@@ -33,7 +42,7 @@ dependencies = [
     "datasets>=3.6.0",
     "transformers",
     "nest-asyncio>=1.6.0",
-    "tau-bench",
+    "tau-bench @ git+https://github.com/sierra-research/tau-bench@main",
 ]
 
 [project.optional-dependencies]
@@ -41,8 +50,38 @@ all = [
     "vllm>=0.8.5.post1",
     "liger-kernel>=0.5.10",
     "deepspeed",
+    "nest-asyncio>=1.6.0",
     "ipykernel",
     "ipywidgets",
+    "duckduckgo-search",
+    "brave-search",
+    "reasoning-gym",
+    "smolagents>=1.15.0",
+    "textarena",
+    "nltk",
+    "tau-bench @ git+https://github.com/sierra-research/tau-bench@main",
+]
+
+train = [
+    "torch>=2.6.0",
+    "transformers",
+    "accelerate>=1.4.0",
+    "peft",
+    "wandb",
+    "rich",
+    "trl>=0.17.0",
+    "vllm>=0.8.5.post1",
+    "liger-kernel>=0.5.10",
+    "deepspeed",
+]
+
+jupyter = [
+    "nest-asyncio>=1.6.0",
+    "ipykernel",
+    "ipywidgets",
+]
+
+envs = [
     "duckduckgo-search",
     "brave-search",
     "reasoning-gym",
