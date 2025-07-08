@@ -26,10 +26,19 @@ class SmolaToolRubric(ToolRubric):
             self.add_reward_func(self.get_named_tool_reward_func(tool_name), weight=0.0)
     
     def correct_answer_reward_func(self, completion, answer, **kwargs) -> float:
-        resp = str(self.parser.parse_answer(completion))
+        ns = self.parser.parse_answer(completion)
+        # resp = str(ns)
+        print("\n=== DEBUG PARSER ===")
+        print(ns)
+        print("\n=== END DEBUG ===")
+        resp_raw = getattr(ns, "answer", "") or ""
         # keep only digits and optional minus/decimal point
-        resp_norm = re.sub(r"[^0-9.+-]", "", resp)
+        resp_norm = re.sub(r"[^0-9.+-]", "", resp_raw)
         ans_norm  = re.sub(r"[^0-9.+-]", "", str(answer))
+        print("\n=== DEBUG ANSWER ===")
+        print(resp_norm)
+        print(ans_norm)
+        print("\n=== END DEBUG ===")
         return 1.0 if resp_norm == ans_norm else 0.0
 
     def evaluate_code(self, code_str, answer, **kwargs) -> float:
