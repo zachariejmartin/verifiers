@@ -220,6 +220,14 @@ class AsyncBatchGenerator:
         """
         Generate a single batch. This runs in the worker thread.
         """
+        # ---- quick-and-dirty debug --------------------------------------------
+        # Only do it once (first batch on first GPU) so the log isn't flooded.
+        if request.batch_id == 0 and request.process_index == 0:
+            print("\n=== DEBUG SAMPLE ===")
+            print("Prompt :", request.env_inputs['prompt'][0])
+            print("Answer :", request.env_inputs['answer'][0])
+            
+        # -----------------------------------------------------------------------
         # Call environment generation
         env_results = self.env.generate(
             request.env_inputs,
@@ -229,6 +237,16 @@ class AsyncBatchGenerator:
             score_rollouts=True,
             max_concurrent=request.max_concurrent,
         )
+        # ---- you can also inspect what came back ------------------------------
+        if request.batch_id == 0 and request.process_index == 0:
+            print("FULL COMPLETION (dialogue list):")
+            for turn in env_results["completion"][0]:
+                print(f"{turn['role']}: {turn['content']}\n")
+            # print("Completion :", env_results['completion'][0])
+            # print("Reward     :", env_results['reward'][0])
+            print("REWARD DICT:\n", {k: v[0] for k, v in env_results.items() if k.startswith("reward")})
+            print("======= END DEBUG =======\n")
+        # ----------------------------------------------------------------------
         
         # Extract all reward-related keys
         all_reward_dict = {}

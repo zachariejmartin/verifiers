@@ -1,4 +1,5 @@
 import json
+import re
 from typing import List, Any
 
 from verifiers.parsers.smola_parser import SmolaParser
@@ -23,6 +24,13 @@ class SmolaToolRubric(ToolRubric):
         ]
         for tool_name in self.tools.keys():
             self.add_reward_func(self.get_named_tool_reward_func(tool_name), weight=0.0)
+    
+    def correct_answer_reward_func(self, completion, answer, **kwargs) -> float:
+        resp = str(self.parser.parse_answer(completion))
+        # keep only digits and optional minus/decimal point
+        resp_norm = re.sub(r"[^0-9.+-]", "", resp)
+        ans_norm  = re.sub(r"[^0-9.+-]", "", str(answer))
+        return 1.0 if resp_norm == ans_norm else 0.0
 
     def evaluate_code(self, code_str, answer, **kwargs) -> float:
         import io

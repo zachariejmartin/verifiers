@@ -61,9 +61,14 @@ def is_liger_available() -> bool:
 
 def get_model(model_name: str, use_liger: bool = True, model_kwargs: Union[Dict[str, Any], None] = None) -> Any:
     if model_kwargs is None:
+        # model_kwargs = dict(
+        #     torch_dtype=torch.bfloat16,
+        #     attn_implementation="flash_attention_2",
+        #     use_cache=False,
+        # )
         model_kwargs = dict(
             torch_dtype=torch.bfloat16,
-            attn_implementation="flash_attention_2",
+            attn_implementation="sdpa",
             use_cache=False,
         )
     if is_liger_available() and use_liger:
@@ -81,7 +86,7 @@ def get_tokenizer(model_name: str) -> Any:
                             '-Instruct'. Please provide a tokenizer with the chat_template attribute.")
     return tokenizer
             
-def get_model_and_tokenizer(model_name: str, use_liger: bool = True, model_kwargs: Union[Dict[str, Any], None] = None) -> Tuple[Any, Any]:
+def get_model_and_tokenizer(model_name: str, use_liger: bool = False, model_kwargs: Union[Dict[str, Any], None] = None) -> Tuple[Any, Any]:
     model = get_model(model_name, use_liger, model_kwargs)
     tokenizer = get_tokenizer(model_name)
     return model, tokenizer

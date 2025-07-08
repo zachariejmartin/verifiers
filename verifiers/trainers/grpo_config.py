@@ -260,7 +260,7 @@ class GRPOConfig(TrainingArguments):
         },
     )
     mask_env_responses: bool = field(
-        default=False,
+        default=True,
         metadata={
             "help": "Whether to mask the environment responses. If `True`, the environment responses are masked, "
             "preventing them from being incorrectly penalized and introducing noise during training."
