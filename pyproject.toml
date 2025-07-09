@@ -36,17 +36,7 @@ all = [
     "wandb",
     "rich",
     "trl>=0.17.0",
-    "requests>=2.32.3",
-    "openai>=1.81.0",
-    "datasets>=3.6.0",
-    "transformers",
-    "nest-asyncio>=1.6.0",
-    "tau-bench @ git+https://github.com/sierra-research/tau-bench@main",
-]
-
-[project.optional-dependencies]
-all = [
-    "vllm>=0.8.5.post1",
+    "vllm>=0.9.1",
     "liger-kernel>=0.5.10",
     "deepspeed",
     "nest-asyncio>=1.6.0",
@@ -58,7 +48,7 @@ all = [
     "smolagents>=1.15.0",
     "textarena",
     "nltk",
-    "tau-bench @ git+https://github.com/sierra-research/tau-bench@main",
+    "tau-bench @ git+https://github.com/sierra-research/tau-bench@main"
 ]
 
 train = [
@@ -88,7 +78,7 @@ envs = [
     "smolagents>=1.15.0",
     "textarena",
     "nltk",
-    "tau-bench @ git+https://github.com/sierra-research/tau-bench@main",
+    "tau-bench @ git+https://github.com/sierra-research/tau-bench@main"
 ]
 
 docs = [
@@ -109,9 +99,6 @@ vf-vllm = "verifiers.inference.vllm_server:main"
 
 [tool.setuptools]
 packages = ["verifiers"]
-
-[tool.uv.sources]
-tau-bench = { git = "https://github.com/sierra-research/tau-bench", rev = "main" }
 
 [build-system]
 requires = ["setuptools>=68.0"]
