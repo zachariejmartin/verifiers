@@ -33,6 +33,7 @@ dependencies = [
     "datasets>=3.6.0",
     "transformers",
     "nest-asyncio>=1.6.0",
+    "tau-bench @ git+https://github.com/sierra-research/tau-bench@main",
 ]
 
 [project.optional-dependencies]
