@@ -33,7 +33,6 @@ dependencies = [
     "datasets>=3.6.0",
     "transformers",
     "nest-asyncio>=1.6.0",
-    "tau-bench @ git+https://github.com/sierra-research/tau-bench@main",
 ]
 
 [project.optional-dependencies]
@@ -48,7 +47,8 @@ all = [
     "reasoning-gym",
     "smolagents>=1.15.0",
     "textarena",
-    "nltk"
+    "nltk",
+    "tau-bench @ git+https://github.com/sierra-research/tau-bench@main",
 ]
 
 docs = [
