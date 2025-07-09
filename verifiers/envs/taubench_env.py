@@ -25,16 +25,23 @@ Usage (pseudo-code)
 from __future__ import annotations
 
 import logging
+<<<<<<< HEAD
 from copy import deepcopy
+=======
+>>>>>>> 351a37e (feat(env): add initial TauBenchEnv wrapper for tau-bench integration)
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List, Tuple
 
+<<<<<<< HEAD
 from datasets import Dataset
+=======
+>>>>>>> 351a37e (feat(env): add initial TauBenchEnv wrapper for tau-bench integration)
 from openai import OpenAI
 
 from verifiers.envs.multiturn_env import MultiTurnEnv
 
+<<<<<<< HEAD
 try:
     from tau_bench.envs.base import Action  # type: ignore
     from tau_bench.types import EnvResetResponse, EnvResponse, RewardResult
@@ -49,6 +56,15 @@ logger = logging.getLogger(__name__)
 try:
     import tau_bench  # type: ignore
     from tau_bench.envs import Env, get_env  # type: ignore
+=======
+logger = logging.getLogger(__name__)
+
+try:
+    # Lazy import so that users who do *not* install the extra still work.
+    import tau_bench  # type: ignore
+    from tau_bench.envs.user import load_user  # type: ignore
+    from tau_bench.run import load_env  # type: ignore
+>>>>>>> 351a37e (feat(env): add initial TauBenchEnv wrapper for tau-bench integration)
 except ModuleNotFoundError:  # pragma: no cover
     tau_bench = None  # type: ignore
     load_env = None  # type: ignore
@@ -65,22 +81,33 @@ class TauBenchEnv(MultiTurnEnv):
 
     def __init__(
         self,
+<<<<<<< HEAD
         domain: str = "retail",
         task_split: str = "train",
         task_ids: (
             List[int] | None
         ) = None,  # TODO: pass the number of tasks you want to run
+=======
+        domain: str = "airline",
+        task_ids: List[int] | None = None,
+        user_model: str = "gpt-4o-mini",
+        user_strategy: str = "llm",
+>>>>>>> 351a37e (feat(env): add initial TauBenchEnv wrapper for tau-bench integration)
         max_turns: int = 10,
         **kwargs: Any,
     ):
         if domain not in self.SUPPORTED_DOMAINS:
             raise ValueError(f"domain must be one of {self.SUPPORTED_DOMAINS}")
+<<<<<<< HEAD
 
+=======
+>>>>>>> 351a37e (feat(env): add initial TauBenchEnv wrapper for tau-bench integration)
         if tau_bench is None:
             raise ImportError(
                 "TauBenchEnv requires the tau-bench extra. Install with 'uv add verifiers[all]'."
             )
 
+<<<<<<< HEAD
         # Only allowing for OpenAI model that τ-Bench supports out-of-the-box.
         # Using a remote model for the user keeps the training stack simple
         # while the assistant still runs on vLLM / local GPUs.
@@ -117,11 +144,31 @@ class TauBenchEnv(MultiTurnEnv):
 
         # Iterator over Task objects
         self._task_iter = iter(task_ids) if task_ids is not None else iter(self._tasks)
+=======
+        super().__init__(max_turns=max_turns, **kwargs)
+
+        # Build underlying τ-Bench environment and user LLM simulator
+        self._tau_env = load_env(domain)
+        # tau_bench switched to `load_user` (see tau_bench.envs.user)
+        self._user_sim = load_user(
+            user_strategy=user_strategy,
+            model=user_model,
+            provider="openai",
+        )
+
+        self._task_iter = iter(self._tau_env.list_tasks())
+        if task_ids is not None:
+            self._task_iter = iter(task_ids)
+>>>>>>> 351a37e (feat(env): add initial TauBenchEnv wrapper for tau-bench integration)
 
         logger.info(
             "TauBenchEnv initialised (%s) with %s tasks",
             domain,
+<<<<<<< HEAD
             len(self._tasks),
+=======
+            len(self._tau_env.list_tasks()),
+>>>>>>> 351a37e (feat(env): add initial TauBenchEnv wrapper for tau-bench integration)
         )
 
     # ------------------------------------------------------------------
@@ -137,6 +184,7 @@ class TauBenchEnv(MultiTurnEnv):
     def env_response(
         self, messages: List[Dict[str, Any]], state: Dict[str, Any], **kwargs: Any
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+<<<<<<< HEAD
         """Return the next *user* message by directly calling τ-Bench env.
 
         The wrapped `tau_env` already embeds its own ``user`` simulator, so
@@ -194,11 +242,48 @@ class TauBenchEnv(MultiTurnEnv):
             state["reward"] = reward_res.reward
 
         return {"role": "user", "content": step_res.observation}, state
+=======
+        """Generate *user* turn via τ-Bench user simulator.
+
+        Very simplified for the initial cut – we delegate to the built-in
+        helper and mark the rollout *done* when the τ-Bench env reports
+        it.  Proper tool execution, reward gathering and error handling
+        will arrive in later commits.
+        """
+        if "tau_state" not in state:
+            # First call → reset underlying env on the next available task.
+            try:
+                task_id = next(self._task_iter)
+            except StopIteration:
+                task_id = None  # type: ignore[assignment]
+            state["task_id"] = task_id
+            state["tau_state"] = self._tau_env.reset(task_id)
+            logger.debug("Reset τ-Bench task %s", task_id)
+
+        # Ask the user simulator for the next message given the current env state.
+        # The exact API surface of build_user_simulator may evolve; keep a loose
+        # wrapper for now.
+        user_msg_str = self._user_sim.respond(state["tau_state"], messages)
+        env_msg = {"role": "user", "content": user_msg_str}
+
+        # Step τ-Bench env with the agent’s *previous* assistant message if any
+        # so that `tau_state` stays in sync. For a first stub we simply echo the
+        # last assistant content.
+        if messages and messages[-1]["role"] == "assistant":
+            assistant_content = messages[-1]["content"]
+            state["tau_state"], reward, done, _ = self._tau_env.step(
+                assistant_content, state["tau_state"]
+            )
+            state["reward"] = reward
+            state["done"] = done
+        return env_msg, state
+>>>>>>> 351a37e (feat(env): add initial TauBenchEnv wrapper for tau-bench integration)
 
     # ------------------------------------------------------------------
     # Convenience helpers (non-mandatory for MultiTurnEnv)
     # ------------------------------------------------------------------
 
+<<<<<<< HEAD
     def _build_hf_datasets(self):
         """Convert τ-Bench Task objects into minimal HF datasets."""
 
@@ -290,6 +375,16 @@ class TauBenchEnv(MultiTurnEnv):
             completion.append(env_msg)
 
         return completion, state
+=======
+    @property
+    def tau_env(self):
+        """Expose underlying τ-Bench environment (read-only)."""
+        return self._tau_env
+
+    @property
+    def user_simulator(self):
+        return self._user_sim
+>>>>>>> 351a37e (feat(env): add initial TauBenchEnv wrapper for tau-bench integration)
 
 
 __all__ = ["TauBenchEnv"]
