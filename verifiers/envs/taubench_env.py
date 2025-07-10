@@ -33,13 +33,21 @@ from openai import OpenAI
 
 from verifiers.envs.multiturn_env import MultiTurnEnv
 
+try:
+    from tau_bench.envs.base import Action  # type: ignore
+
+    RESPOND_ACTION_NAME = "respond"
+except Exception:  # pragma: no cover
+    Action = None  # type: ignore
+    RESPOND_ACTION_NAME = "respond"
+
 logger = logging.getLogger(__name__)
 
 try:
     # Lazy import so that users who do *not* install the extra still work.
     import tau_bench  # type: ignore
+    from tau_bench.envs import get_env  # type: ignore
     from tau_bench.envs.user import load_user  # type: ignore
-    from tau_bench.run import load_env  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover
     tau_bench = None  # type: ignore
     load_env = None  # type: ignore
@@ -58,8 +66,8 @@ class TauBenchEnv(MultiTurnEnv):
         self,
         domain: str = "airline",
         task_ids: List[int] | None = None,
-        user_model: str = "gpt-4o-mini",
-        user_strategy: str = "llm",
+        # user_model_name: str | None = None,
+        # user_strategy: str = "llm",
         max_turns: int = 10,
         **kwargs: Any,
     ):
@@ -72,18 +80,24 @@ class TauBenchEnv(MultiTurnEnv):
 
         super().__init__(max_turns=max_turns, **kwargs)
 
+        # Only allowing for OpenAI model that τ-Bench supports out-of-the-box.
+        # Using a remote model for the user keeps the training stack simple
+        # while the assistant still runs on vLLM / local GPUs.
+        self._user_model_name = "gpt-4o-mini"
+        self._user_strategy = "llm"
+
         # Build underlying τ-Bench environment and user LLM simulator
-        self._tau_env = load_env(domain)
-        # tau_bench switched to `load_user` (see tau_bench.envs.user)
-        self._user_sim = load_user(
-            user_strategy=user_strategy,
-            model=user_model,
-            provider="openai",
+        self._tau_env = get_env(
+            env_name=domain,
+            user_strategy=self._user_strategy,
+            user_model=self._user_model_name,
+            user_provider="openai",
         )
 
-        self._task_iter = iter(self._tau_env.list_tasks())
-        if task_ids is not None:
-            self._task_iter = iter(task_ids)
+        # τ-Bench task iterator (if caller provided explicit IDs use those)
+        self._task_iter = (
+            iter(task_ids) if task_ids is not None else iter(self._tau_env.list_tasks())
+        )
 
         logger.info(
             "TauBenchEnv initialised (%s) with %s tasks",
@@ -104,40 +118,46 @@ class TauBenchEnv(MultiTurnEnv):
     def env_response(
         self, messages: List[Dict[str, Any]], state: Dict[str, Any], **kwargs: Any
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Generate *user* turn via τ-Bench user simulator.
+        """Return the next *user* message by directly calling τ-Bench env.
 
-        Very simplified for the initial cut – we delegate to the built-in
-        helper and mark the rollout *done* when the τ-Bench env reports
-        it.  Proper tool execution, reward gathering and error handling
-        will arrive in later commits.
+        The wrapped `tau_env` already embeds its own ``user`` simulator, so
+        we simply forward assistant actions and relay the observation string
+        back to GRPO as a chat message.
         """
+
+        # ---------- FIRST TURN (assistant hasn't acted yet) ----------
         if "tau_state" not in state:
-            # First call → reset underlying env on the next available task.
+            # Pick next task id (None → random) and reset env
             try:
-                task_id = next(self._task_iter)
+                task_id = next(self._task_iter)  # may raise StopIteration
             except StopIteration:
-                task_id = None  # type: ignore[assignment]
+                task_id = None  # let τ-Bench choose random task
+
+            reset_res = self._tau_env.reset(task_id)  # EnvResetResponse
+            state["tau_state"] = reset_res
             state["task_id"] = task_id
-            state["tau_state"] = self._tau_env.reset(task_id)
-            logger.debug("Reset τ-Bench task %s", task_id)
+            state["done"] = False
 
-        # Ask the user simulator for the next message given the current env state.
-        # The exact API surface of build_user_simulator may evolve; keep a loose
-        # wrapper for now.
-        user_msg_str = self._user_sim.respond(state["tau_state"], messages)
-        env_msg = {"role": "user", "content": user_msg_str}
+            return {"role": "user", "content": reset_res.observation}, state
 
-        # Step τ-Bench env with the agent’s *previous* assistant message if any
-        # so that `tau_state` stays in sync. For a first stub we simply echo the
-        # last assistant content.
-        if messages and messages[-1]["role"] == "assistant":
-            assistant_content = messages[-1]["content"]
-            state["tau_state"], reward, done, _ = self._tau_env.step(
-                assistant_content, state["tau_state"]
-            )
-            state["reward"] = reward
-            state["done"] = done
-        return env_msg, state
+        # ---------- SUBSEQUENT USER STEPS ----------
+        if not messages:
+            raise ValueError("Assistant message history is empty on user step")
+
+        if Action is None:  # safety net if tau_bench missing
+            raise RuntimeError("tau_bench Action class not available")
+
+        assistant_content = messages[-1]["content"]
+        action = Action(name=RESPOND_ACTION_NAME, kwargs={"content": assistant_content})  # type: ignore[arg-type]
+
+        step_res = self._tau_env.step(action)
+
+        # Update state with most recent τ-Bench response object
+        state["tau_state"] = step_res
+        state["done"] = step_res.done
+        state["reward"] = step_res.reward
+
+        return {"role": "user", "content": step_res.observation}, state
 
     # ------------------------------------------------------------------
     # Convenience helpers (non-mandatory for MultiTurnEnv)
@@ -148,9 +168,7 @@ class TauBenchEnv(MultiTurnEnv):
         """Expose underlying τ-Bench environment (read-only)."""
         return self._tau_env
 
-    @property
-    def user_simulator(self):
-        return self._user_sim
+    # User simulator is internal to τ-Bench; no direct handle needed.
 
 
 __all__ = ["TauBenchEnv"]
