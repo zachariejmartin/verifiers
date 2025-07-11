@@ -99,6 +99,10 @@ class TauBenchEnv(MultiTurnEnv):
         self._tasks = tmp_env.tasks  # store Task objects for dataset rows / iteration
         self._wiki: str = getattr(tmp_env, "wiki", "")
 
+        self._tools_info = getattr(tmp_env, "tools_info", None)
+        if self._tools_info is None:
+            raise ValueError("No tools provided to τ-Bench environment.")
+
         hf_ds_train, hf_ds_eval = self._build_hf_datasets()
 
         super().__init__(
@@ -268,6 +272,8 @@ class TauBenchEnv(MultiTurnEnv):
                 model=model,
                 sampling_args=sampling_args,
                 message_type=self.message_type,
+                tools=self._tools_info,
+                tool_choice="auto",
             )
 
             has_error = isinstance(response, str) and response.startswith("[ERROR]")

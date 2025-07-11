@@ -1,15 +1,15 @@
 import asyncio
 import logging
-from asyncio import Semaphore
 from abc import ABC, abstractmethod
-from copy import deepcopy
-from typing import Any, Dict, List, Literal, Tuple, Optional, Union, TYPE_CHECKING
+from asyncio import Semaphore
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union
 
 from datasets import Dataset
-from openai import OpenAI, AsyncOpenAI
-from openai.types.completion import Completion
+from openai import AsyncOpenAI, OpenAI
 from openai.types.chat.chat_completion import ChatCompletion
+from openai.types.completion import Completion
 
 from verifiers import RewardFunc
 from verifiers.parsers import Parser
@@ -174,7 +174,8 @@ class Environment(ABC):
             response = await client.chat.completions.create(
                 model=model,
                 messages=prompt, # type: ignore
-                **sampling_args
+                **sampling_args,
+                **kwargs # forward extra tool params to support JSON function calling
             )
             return response.choices[0].message.content, response 
         elif message_type == 'completion':
@@ -182,7 +183,8 @@ class Environment(ABC):
             response = await client.completions.create(
                 model=model,
                 prompt=prompt,
-                **sampling_args
+                **sampling_args,
+                **kwargs # forward extra tool params to support JSON function calling
             )
             return response.choices[0].text, response 
 
@@ -321,7 +323,7 @@ class Environment(ABC):
                 loop.close()
                 asyncio.set_event_loop(None)
         except RuntimeError:
-            import nest_asyncio # type: ignore
+            import nest_asyncio  # type: ignore
             nest_asyncio.apply()
             loop = asyncio.get_running_loop()
             setup_executor(loop)
