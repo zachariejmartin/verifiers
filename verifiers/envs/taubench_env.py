@@ -26,8 +26,6 @@ from __future__ import annotations
 
 import logging
 from copy import deepcopy
-from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Dict, List, Tuple
 
 from datasets import Dataset
