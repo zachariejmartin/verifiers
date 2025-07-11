@@ -25,6 +25,7 @@ Usage (pseudo-code)
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List, Tuple
@@ -99,6 +100,7 @@ class TauBenchEnv(MultiTurnEnv):
             user_provider="openai",
         )
         self._tasks = tmp_env.tasks  # store Task objects for dataset rows / iteration
+        self._wiki: str = getattr(tmp_env, "wiki", "")
 
         hf_ds_train, hf_ds_eval = self._build_hf_datasets()
 
@@ -107,6 +109,7 @@ class TauBenchEnv(MultiTurnEnv):
             eval_dataset=hf_ds_eval,
             max_turns=max_turns,
             message_type="chat",
+            system_prompt=None,  # we embed system in dataset rows explicitly
             few_shot=[],
             mask_env_response=True,
             **kwargs,
@@ -201,7 +204,9 @@ class TauBenchEnv(MultiTurnEnv):
 
         def _row(idx, task):  # type: ignore[annassign]
             return {
-                "prompt": [{"role": "user", "content": task.instruction}],
+                "prompt": [
+                    {"role": "system", "content": self._wiki},
+                ],
                 "answer": "",  # reward is computed by τ-Bench, not by string match
                 "task_id": idx,
                 "info": {},
@@ -226,6 +231,65 @@ class TauBenchEnv(MultiTurnEnv):
             hf_ds_eval = hf_ds_train
 
         return hf_ds_train, hf_ds_eval
+
+    # ------------------------------------------------------------------
+    # Custom rollout to ensure user speaks before first assistant turn
+    # ------------------------------------------------------------------
+
+    def rollout(
+        self,
+        client: OpenAI,
+        model: str,
+        prompt: List[Dict[str, Any]],
+        answer: str,
+        task: str = "default",
+        info: Dict[str, Any] | None = None,
+        sampling_args: Dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """Override MultiTurnEnv.rollout so that the first user message is generated before the first assistant turn."""
+
+        if info is None:
+            info = {}
+        if sampling_args is None:
+            sampling_args = {}
+
+        state: Dict[str, Any] = {"answer": answer}
+        messages = deepcopy(prompt)  # should contain only system/wiki
+        completion: List[Dict[str, Any]] = []
+
+        # Bootstrap: get first user utterance from the environment
+        env_msg, state = self.env_response(messages, state, **kwargs)
+        messages.append(env_msg)
+        completion.append(env_msg)
+
+        turn = 0
+        while True:
+            response = self.get_model_response(
+                prompt=messages,
+                client=client,
+                model=model,
+                sampling_args=sampling_args,
+                message_type=self.message_type,
+            )
+
+            has_error = isinstance(response, str) and response.startswith("[ERROR]")
+            messages.append({"role": "assistant", "content": response})
+            completion.append({"role": "assistant", "content": response})
+            turn += 1
+
+            if (
+                self.is_completed(messages, state, **kwargs)
+                or turn >= self.max_turns
+                or has_error
+            ):
+                break
+
+            env_msg, state = self.env_response(messages, state, **kwargs)
+            messages.append(env_msg)
+            completion.append(env_msg)
+
+        return completion, state
 
 
 __all__ = ["TauBenchEnv"]
