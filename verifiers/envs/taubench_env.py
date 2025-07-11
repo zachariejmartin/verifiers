@@ -36,6 +36,7 @@ from verifiers.envs.multiturn_env import MultiTurnEnv
 
 try:
     from tau_bench.envs.base import Action  # type: ignore
+    from tau_bench.types import EnvResetResponse, EnvResponse, RewardResult
 
     RESPOND_ACTION_NAME = "respond"
 except Exception:  # pragma: no cover
@@ -140,11 +141,10 @@ class TauBenchEnv(MultiTurnEnv):
         back to GRPO as a chat message.
         """
 
-        # ---------- FIRST TURN (assistant hasn't acted yet) ----------
+        # FIRST TURN (assistant hasn't acted yet)
         if "tau_state" not in state:
-            # ------------------------------------------------------------------
+
             # Build a fresh τ-Bench environment for *this* rollout only
-            # ------------------------------------------------------------------
             if "tau_env" not in state:
                 state["tau_env"] = get_env(
                     env_name=self._domain,
@@ -157,11 +157,11 @@ class TauBenchEnv(MultiTurnEnv):
             tau_env: Env = state["tau_env"]  # type: ignore[assignment]
             # Pick next task id (None → random) and reset env
             try:
-                task_id = next(self._task_iter)  # may raise StopIteration
+                task_id = next(self._task_iter)
             except StopIteration:
                 task_id = None  # let τ-Bench choose random task
 
-            reset_res = tau_env.reset(task_id)  # EnvResetResponse
+            reset_res: EnvResetResponse = tau_env.reset(task_id)  # EnvResetResponse
             state["tau_state"] = reset_res
             state["task_id"] = task_id
             state["done"] = False
@@ -179,7 +179,7 @@ class TauBenchEnv(MultiTurnEnv):
         action = Action(name=RESPOND_ACTION_NAME, kwargs={"content": assistant_content})  # type: ignore[arg-type]
 
         tau_env: Env = state["tau_env"]  # type: ignore[assignment]
-        step_res = tau_env.step(action)
+        step_res: EnvResponse = tau_env.step(action)
 
         # Update state with most recent τ-Bench response object
         state["tau_state"] = step_res
@@ -187,7 +187,7 @@ class TauBenchEnv(MultiTurnEnv):
 
         # If episode finished compute reward once and store
         if step_res.done:
-            reward_res = tau_env.calculate_reward()
+            reward_res: RewardResult = tau_env.calculate_reward()
             state["reward"] = reward_res.reward
 
         return {"role": "user", "content": step_res.observation}, state
@@ -195,12 +195,6 @@ class TauBenchEnv(MultiTurnEnv):
     # ------------------------------------------------------------------
     # Convenience helpers (non-mandatory for MultiTurnEnv)
     # ------------------------------------------------------------------
-
-    def tau_env(self):
-        """Not available – a fresh τ-Bench env is created per rollout."""
-        raise AttributeError(
-            "tau_env is per-rollout; access via state['tau_env'] inside env_response"
-        )
 
     def _build_hf_datasets(self):
         """Convert τ-Bench Task objects into minimal HF datasets."""
