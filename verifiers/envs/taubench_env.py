@@ -25,18 +25,12 @@ Usage (pseudo-code)
 from __future__ import annotations
 
 import logging
-<<<<<<< HEAD
 from copy import deepcopy
-=======
->>>>>>> 351a37e (feat(env): add initial TauBenchEnv wrapper for tau-bench integration)
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List, Tuple
 
-<<<<<<< HEAD
 from datasets import Dataset
-=======
->>>>>>> 351a37e (feat(env): add initial TauBenchEnv wrapper for tau-bench integration)
 from openai import OpenAI
 
 from verifiers.envs.multiturn_env import MultiTurnEnv
