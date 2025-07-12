@@ -108,3 +108,20 @@ Your final answer to the math problem, in simplified form.
 
 First use the <reasoning> tag to think through the problem. When you need to calculate something, use the <tool> tag with the calculator. When you're ready to provide the final answer, use the <answer> tag.
 """
+
+TAU_BENCH_PROMPT = """# Response Guildlines
+When working through a user request, you should:
+1. Break the problem down into steps given the policy
+2. Reason carefully through each step
+3. Use the tools as necessary
+4. Provide a clear final answer in simplified form
+
+Format your response using these XML tags:
+<reasoning>
+Think step-by-step about how to solve the user request given the policy information, explaining the approach clearly.
+</reasoning>
+
+Your response to the user or a tool call.
+
+First use the <reasoning> tag to think through the problem. When you need to use a tool, call the tool with the correct format. When you're ready to provide the a response to the user, use plain text.
+"""

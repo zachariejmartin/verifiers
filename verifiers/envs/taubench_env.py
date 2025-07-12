@@ -33,6 +33,7 @@ from datasets import Dataset
 from openai import OpenAI
 
 from verifiers.envs.multiturn_env import MultiTurnEnv
+from verifiers.prompts.system_prompts import TAU_BENCH_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,8 @@ class TauBenchEnv(MultiTurnEnv):
         )
         self._tasks = tmp_env.tasks  # store Task objects for dataset rows / iteration
         self._wiki: str = getattr(tmp_env, "wiki", "")
+        if not self._wiki:
+            raise ValueError("τ-Bench environment policy not found.")
 
         self._tools_info = getattr(tmp_env, "tools_info", None)
         if self._tools_info is None:
@@ -108,6 +111,13 @@ class TauBenchEnv(MultiTurnEnv):
             mask_env_response=True,
             **kwargs,
         )
+
+        # ---------------- Rubric & parser setup ----------------------
+        from verifiers.parsers.taubench_parser import TauBenchParser
+        from verifiers.rubrics.taubench_rubric import TauBenchRubric
+
+        self.llm_parser = TauBenchParser()
+        self.rubric = TauBenchRubric()
 
         # Iterator over Task objects
         self._task_iter = iter(task_ids) if task_ids is not None else iter(self._tasks)
@@ -167,7 +177,7 @@ class TauBenchEnv(MultiTurnEnv):
 
         # ---------- SUBSEQUENT USER STEPS ----------
         if not messages:
-            raise ValueError("Assistant message history is empty on user step")
+            raise ValueError("Assistant message history is empty on environment step")
 
         assistant_content = messages[-1]
         action = self._message_to_action(message=assistant_content)
@@ -183,6 +193,22 @@ class TauBenchEnv(MultiTurnEnv):
         if step_res.done:
             reward_res: RewardResult = tau_env.calculate_reward()
             state["reward"] = reward_res.reward
+
+        # ------------------------------------------------------------------
+        # Build the message that will be fed back to the assistant.
+        # If the assistant called a tool, we emit a `role="tool"` message with
+        # the execution result (OpenAI function-call convention). Otherwise we
+        # behave like a regular user turn.
+        # ------------------------------------------------------------------
+        if action.name != RESPOND_ACTION_NAME:
+            tool_call = assistant_content["tool_calls"][0]
+            tool_msg = {
+                "role": "tool",
+                "tool_call_id": tool_call["id"],
+                "name": tool_call["function"]["name"],
+                "content": step_res.observation,
+            }
+            return tool_msg, state
 
         return {"role": "user", "content": step_res.observation}, state
 
@@ -215,7 +241,7 @@ class TauBenchEnv(MultiTurnEnv):
         def _row(idx, task):  # type: ignore[annassign]
             return {
                 "prompt": [
-                    {"role": "system", "content": self._wiki},
+                    {"role": "system", "content": f"{self._wiki}\n{TAU_BENCH_PROMPT}"},
                 ],
                 "answer": "",  # reward is computed by τ-Bench, not by string match
                 "task_id": idx,
