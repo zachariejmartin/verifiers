@@ -24,6 +24,7 @@ Usage (pseudo-code)
 
 from __future__ import annotations
 
+import json
 import logging
 from copy import deepcopy
 from typing import Any, Dict, List, Tuple
@@ -33,27 +34,23 @@ from openai import OpenAI
 
 from verifiers.envs.multiturn_env import MultiTurnEnv
 
-try:
-    from tau_bench.envs.base import Action  # type: ignore
-    from tau_bench.types import EnvResetResponse, EnvResponse, RewardResult
-
-    RESPOND_ACTION_NAME = "respond"
-except Exception:  # pragma: no cover
-    Action = None  # type: ignore
-    RESPOND_ACTION_NAME = "respond"
-
 logger = logging.getLogger(__name__)
 
 try:
     import tau_bench  # type: ignore
     from tau_bench.envs import Env, get_env  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover
-    tau_bench = None  # type: ignore
-    load_env = None  # type: ignore
-    build_user_simulator = None  # type: ignore
-    logger.warning(
-        "tau-bench not found – TauBenchEnv is a stub. Did you install verifiers[all]?"
+    from tau_bench.types import (
+        RESPOND_ACTION_NAME,
+        Action,
+        EnvResetResponse,
+        EnvResponse,
+        RewardResult,
     )
+except ModuleNotFoundError as err:  # pragma: no cover
+    raise ImportError(
+        "TauBenchEnv requires the optional 'tau-bench' dependency.\n"
+        "Install with 'uv add verifiers[all]'"
+    ) from err
 
 
 class TauBenchEnv(MultiTurnEnv):
@@ -73,10 +70,6 @@ class TauBenchEnv(MultiTurnEnv):
     ):
         if domain not in self.SUPPORTED_DOMAINS:
             raise ValueError(f"domain must be one of {self.SUPPORTED_DOMAINS}")
-        if tau_bench is None:
-            raise ImportError(
-                "TauBenchEnv requires the tau-bench extra. Install with 'uv add verifiers[all]'."
-            )
 
         # Only allowing for OpenAI model that τ-Bench supports out-of-the-box.
         # Using a remote model for the user keeps the training stack simple
@@ -176,11 +169,8 @@ class TauBenchEnv(MultiTurnEnv):
         if not messages:
             raise ValueError("Assistant message history is empty on user step")
 
-        if Action is None:  # safety net if tau_bench missing
-            raise RuntimeError("tau_bench Action class not available")
-
-        assistant_content = messages[-1]["content"]
-        action = Action(name=RESPOND_ACTION_NAME, kwargs={"content": assistant_content})  # type: ignore[arg-type]
+        assistant_content = messages[-1]
+        action = self._message_to_action(message=assistant_content)
 
         tau_env: Env = state["tau_env"]  # type: ignore[assignment]
         step_res: EnvResponse = tau_env.step(action)
@@ -199,6 +189,25 @@ class TauBenchEnv(MultiTurnEnv):
     # ------------------------------------------------------------------
     # Convenience helpers (non-mandatory for MultiTurnEnv)
     # ------------------------------------------------------------------
+
+    def _message_to_action(self, message: Dict[str, Any]) -> Action:
+        """Convert assistant message to τ-Bench Action, following ToolCallingAgent logic."""
+        if (
+            "tool_calls" in message
+            and message["tool_calls"] is not None
+            and len(message["tool_calls"]) > 0
+            and message["tool_calls"][0]["function"] is not None
+        ):
+
+            tool_call = message["tool_calls"][0]
+            return Action(
+                name=tool_call["function"]["name"],
+                kwargs=json.loads(tool_call["function"]["arguments"]),
+            )
+        else:
+            return Action(
+                name=RESPOND_ACTION_NAME, kwargs={"content": message["content"]}
+            )
 
     def _build_hf_datasets(self):
         """Convert τ-Bench Task objects into minimal HF datasets."""
