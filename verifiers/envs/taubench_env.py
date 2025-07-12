@@ -280,7 +280,7 @@ class TauBenchEnv(MultiTurnEnv):
         model: str,
         prompt: List[Dict[str, Any]],
         answer: str,
-        task: str = "default",
+        task: str = "0",
         info: Dict[str, Any] | None = None,
         sampling_args: Dict[str, Any] | None = None,
         **kwargs: Any,
