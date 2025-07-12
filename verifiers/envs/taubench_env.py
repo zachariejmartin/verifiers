@@ -30,7 +30,7 @@ from copy import deepcopy
 from typing import Any, Dict, List, Tuple
 
 from datasets import Dataset
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 
 from verifiers.envs.multiturn_env import MultiTurnEnv
 from verifiers.prompts.system_prompts import TAU_BENCH_PROMPT
@@ -119,9 +119,6 @@ class TauBenchEnv(MultiTurnEnv):
         self.llm_parser = TauBenchParser()
         self.rubric = TauBenchRubric()
 
-        # Iterator over Task objects
-        self._task_iter = iter(task_ids) if task_ids is not None else iter(self._tasks)
-
         logger.info(
             "TauBenchEnv initialised (%s) with %s tasks",
             domain,
@@ -162,11 +159,15 @@ class TauBenchEnv(MultiTurnEnv):
                 )
 
             tau_env: Env = state["tau_env"]  # type: ignore[assignment]
-            # Pick next task id (None → random) and reset env
-            try:
-                task_id = next(self._task_iter)
-            except StopIteration:
-                task_id = None  # let τ-Bench choose random task
+            # Determine task id from state["task"] (string) – convert to int, allow "default" for random
+            task_str = state.get("task", "default")
+            if task_str == "default" or task_str is None:
+                task_id = None  # τ-Bench will pick randomly
+            else:
+                try:
+                    task_id = int(task_str)
+                except (TypeError, ValueError):
+                    task_id = None
 
             reset_res: EnvResetResponse = tau_env.reset(task_id)  # EnvResetResponse
             state["tau_state"] = reset_res
@@ -243,7 +244,8 @@ class TauBenchEnv(MultiTurnEnv):
                 "prompt": [
                     {"role": "system", "content": f"{self._wiki}\n{TAU_BENCH_PROMPT}"},
                 ],
-                "answer": "",  # reward is computed by τ-Bench, not by string match
+                "answer": "",  # reward is computed by τ-Bench
+                "task": str(idx),  # string task identifier passed to rollout
                 "task_id": idx,
                 "info": {},
             }
@@ -272,9 +274,9 @@ class TauBenchEnv(MultiTurnEnv):
     # Custom rollout to ensure user speaks before first assistant turn
     # ------------------------------------------------------------------
 
-    def rollout(
+    async def rollout(
         self,
-        client: OpenAI,
+        client: AsyncOpenAI,
         model: str,
         prompt: List[Dict[str, Any]],
         answer: str,
@@ -283,25 +285,34 @@ class TauBenchEnv(MultiTurnEnv):
         sampling_args: Dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        """Override MultiTurnEnv.rollout so that the first user message is generated before the first assistant turn."""
+        """Generate a rollout where the *environment/user* speaks first.
+
+        Sequence per turn:
+            user (τ-Bench) → assistant (LLM)
+        until τ-Bench signals ``done`` or ``max_turns`` is reached.
+        """
 
         if info is None:
             info = {}
         if sampling_args is None:
             sampling_args = {}
 
-        state: Dict[str, Any] = {"answer": answer}
-        messages = deepcopy(prompt)  # should contain only system/wiki
+        # Track reward + raw τ-Bench responses
+        state: Dict[str, Any] = {"answer": answer, "task": task, "responses": []}
+
+        messages = deepcopy(prompt)  # system + wiki only
         completion: List[Dict[str, Any]] = []
 
-        # Bootstrap: get first user utterance from the environment
+        # First environment (user) message
         env_msg, state = self.env_response(messages, state, **kwargs)
+        print(f"env message: {env_msg}")
         messages.append(env_msg)
         completion.append(env_msg)
 
         turn = 0
         while True:
-            response = self.get_model_response(
+            # Assistant step --------------------------------------------------
+            content, response_obj = await self.get_model_response(
                 prompt=messages,
                 client=client,
                 model=model,
@@ -310,22 +321,43 @@ class TauBenchEnv(MultiTurnEnv):
                 tools=self._tools_info,
                 tool_choice="auto",
             )
+            print(f"asst. content: {content}")
 
-            has_error = isinstance(response, str) and response.startswith("[ERROR]")
-            messages.append({"role": "assistant", "content": response})
-            completion.append({"role": "assistant", "content": response})
+            # Build assistant message dict preserving any tool call schema
+            assistant_msg = response_obj.choices[0].message.model_dump()
+
+            # Ensure content is a string (OpenAI requires non-null)
+            if assistant_msg.get("content") is None:
+                assistant_msg["content"] = ""
+
+            # If the assistant invoked multiple tool calls, keep only the first
+            if (
+                assistant_msg.get("tool_calls") is not None
+                and len(assistant_msg["tool_calls"]) > 1
+            ):
+                assistant_msg["tool_calls"] = assistant_msg["tool_calls"][:1]
+
+            print(f"asst. msg: {assistant_msg}")
+
+            messages.append(assistant_msg)
+            completion.append(assistant_msg)
+
+            # TODO: fix this
+            # state.setdefault("responses", []).append(response_obj)
             turn += 1
 
-            if (
-                self.is_completed(messages, state, **kwargs)
-                or turn >= self.max_turns
-                or has_error
-            ):
+            # Check termination after assistant reply
+            if self.is_completed(messages, state, **kwargs) or turn >= self.max_turns:
                 break
 
+            # Environment (user) step ---------------------------------------
             env_msg, state = self.env_response(messages, state, **kwargs)
+            print(f"env message: {env_msg}")
             messages.append(env_msg)
             completion.append(env_msg)
+
+            if self.is_completed(messages, state, **kwargs):
+                break
 
         return completion, state
 
