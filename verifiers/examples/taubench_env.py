@@ -62,7 +62,16 @@ print("System prompt:\n", env.dataset[0]["prompt"][0]["content"])  # type: ignor
 # ---------------------------------------------------------------------
 # Load assistant model
 # ---------------------------------------------------------------------
-model, tokenizer = vf.get_model_and_tokenizer(MODEL_NAME)
+model_kwargs = dict(
+    torch_dtype="bfloat16",  # or torch.float16 / bf16 etc.
+    attn_implementation="sdpa",  # <- turn Flash-Attn OFF
+    use_cache=False,
+)
+
+model, tokenizer = vf.get_model_and_tokenizer(
+    MODEL_NAME, use_liger=False, model_kwargs=model_kwargs
+)
+
 run_name = "taubench-smoke_" + MODEL_NAME.split("/")[-1].lower()
 
 # ---------------------------------------------------------------------
