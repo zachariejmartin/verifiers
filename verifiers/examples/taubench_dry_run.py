@@ -27,15 +27,23 @@ from verifiers.envs.taubench_env import TauBenchEnv
 # -----------------------------------------------------------------------------
 # Config
 # -----------------------------------------------------------------------------
-model_name = "Qwen/Qwen2.5-7B-Instruct"
+MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
 DOMAIN = "retail"  # "airline" or "retail"
-ASSISTANT_MODEL = model_name  # the same model τ-Bench expects by default
+ASSISTANT_MODEL = MODEL_NAME  # the same model τ-Bench expects by default
 MAX_TURNS = 20  # keep the rollout short for a dry-run
 
 import verifiers as vf
 
-model, tokenizer = vf.get_model_and_tokenizer(model_name)
-run_name = "taubench-grpo_" + model_name.split("/")[-1].lower()
+model_kwargs = dict(
+    torch_dtype="bfloat16",  # or torch.float16 / bf16 etc.
+    attn_implementation="sdpa",  # <- turn Flash-Attn OFF
+    use_cache=False,
+)
+
+model, tokenizer = vf.get_model_and_tokenizer(
+    MODEL_NAME, use_liger=False, model_kwargs=model_kwargs
+)
+run_name = "taubench-grpo_" + MODEL_NAME.split("/")[-1].lower()
 
 args = vf.grpo_defaults(run_name=run_name)
 
@@ -50,7 +58,7 @@ async def main() -> None:
 
     client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
-    env = TauBenchEnv(domain=DOMAIN, max_turns=MAX_TURNS)
+    env = TauBenchEnv(user_model_name=MODEL_NAME, domain=DOMAIN, max_turns=MAX_TURNS)
 
     # Take the very first task from the internal HF dataset
     row = env.get_dataset(n=1)[0]

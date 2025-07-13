@@ -61,6 +61,7 @@ class TauBenchEnv(MultiTurnEnv):
 
     def __init__(
         self,
+        user_model_name: str,
         domain: str = "retail",
         task_split: str = "train",
         task_ids: (
@@ -75,7 +76,7 @@ class TauBenchEnv(MultiTurnEnv):
         # Only allowing for OpenAI model that τ-Bench supports out-of-the-box.
         # Using a remote model for the user keeps the training stack simple
         # while the assistant still runs on vLLM / local GPUs.
-        self._user_model_name = "gpt-4o-mini"
+        self._user_model_name = user_model_name
         self._user_strategy = "llm"
 
         # Persist parameters for later per-rollout env construction
@@ -88,7 +89,7 @@ class TauBenchEnv(MultiTurnEnv):
             task_split=self._task_split,
             user_strategy=self._user_strategy,
             user_model=self._user_model_name,
-            user_provider="openai",
+            # user_provider="openai",
         )
         self._tasks = tmp_env.tasks  # store Task objects for dataset rows / iteration
         self._wiki: str = getattr(tmp_env, "wiki", "")
