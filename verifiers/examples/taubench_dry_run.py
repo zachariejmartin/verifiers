@@ -27,7 +27,7 @@ from verifiers.envs.taubench_env import TauBenchEnv
 # -----------------------------------------------------------------------------
 # Config
 # -----------------------------------------------------------------------------
-MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
+MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"
 DOMAIN = "retail"  # "airline" or "retail"
 ASSISTANT_MODEL = MODEL_NAME  # the same model τ-Bench expects by default
 MAX_TURNS = 20  # keep the rollout short for a dry-run
