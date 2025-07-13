@@ -38,12 +38,34 @@ import verifiers as vf
 from verifiers.envs.taubench_env import TauBenchEnv
 from verifiers.trainers.grpo_config import GRPOConfig
 
+
 # ---------------------------------------------------------------------
 # Model & environment configuration
 # ---------------------------------------------------------------------
 MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"  # must be an alias served by vLLM
 DOMAIN = "retail"
 MAX_TURNS = 20  # stop after 20 dialogue turns
+
+# ---------------------------------------------------------------------
+# Load assistant model
+# ---------------------------------------------------------------------
+
+model_kwargs = dict(
+    torch_dtype="bfloat16",  # or torch.float16 / bf16 etc.
+    attn_implementation="sdpa",  # <- turn Flash-Attn OFF
+    use_cache=False,
+)
+
+model, tokenizer = vf.get_model_and_tokenizer(
+    MODEL_NAME, use_liger=False, model_kwargs=model_kwargs
+)
+run_name = "taubench-smoke_" + MODEL_NAME.split("/")[-1].lower()
+
+args = vf.grpo_defaults(run_name=run_name)
+
+host, port = args.vllm_server_host, args.vllm_server_port
+os.environ["OPENAI_API_KEY"] = "EMPTY"  # just like GRPOTrainer
+os.environ["OPENAI_API_BASE"] = f"http://{host}:{port}/v1"  # point to your vLLM server
 
 # τ-Bench environment (user-LLM lives inside)
 env = TauBenchEnv(
@@ -58,12 +80,6 @@ env.dataset = env.dataset.select([0])  # type: ignore
 env.eval_dataset = env.dataset  # type: ignore
 
 print("System prompt:\n", env.dataset[0]["prompt"][0]["content"])  # type: ignore
-
-# ---------------------------------------------------------------------
-# Load assistant model
-# ---------------------------------------------------------------------
-model, tokenizer = vf.get_model_and_tokenizer(MODEL_NAME)
-run_name = "taubench-smoke_" + MODEL_NAME.split("/")[-1].lower()
 
 # ---------------------------------------------------------------------
 # GRPO configuration (trimmed for a one-step test)
