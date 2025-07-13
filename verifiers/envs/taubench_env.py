@@ -89,7 +89,7 @@ class TauBenchEnv(MultiTurnEnv):
             task_split=self._task_split,
             user_strategy=self._user_strategy,
             user_model=self._user_model_name,
-            # user_provider="openai",
+            user_provider="openai",
         )
         self._tasks = tmp_env.tasks  # store Task objects for dataset rows / iteration
         self._wiki: str = getattr(tmp_env, "wiki", "")
