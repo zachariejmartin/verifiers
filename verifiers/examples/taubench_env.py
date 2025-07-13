@@ -82,6 +82,7 @@ args = GRPOConfig(
     save_strategy="no",
     bf16=True,
     report_to="wandb",
+    max_prompt_length=2048,
 )
 
 # ---------------------------------------------------------------------
