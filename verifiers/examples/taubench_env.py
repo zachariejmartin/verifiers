@@ -45,22 +45,8 @@ MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"  # must be an alias served by vLLM
 DOMAIN = "retail"
 MAX_TURNS = 20  # stop after 20 dialogue turns
 
-# τ-Bench environment (user-LLM lives inside)
-env = TauBenchEnv(
-    user_model_name=MODEL_NAME,
-    domain=DOMAIN,
-    max_turns=MAX_TURNS,
-    # max_concurrent=1,  # single-threaded for the test
-)
-
-# Keep exactly one task for the smoke-test
-env.dataset = env.dataset.select([0])  # type: ignore
-env.eval_dataset = env.dataset  # type: ignore
-
-print("System prompt:\n", env.dataset[0]["prompt"][0]["content"])  # type: ignore
-
 # ---------------------------------------------------------------------
-# Load assistant model
+# Load assistant/user model
 # ---------------------------------------------------------------------
 model_kwargs = dict(
     torch_dtype="bfloat16",  # or torch.float16 / bf16 etc.
@@ -74,13 +60,34 @@ model, tokenizer = vf.get_model_and_tokenizer(
 
 run_name = "taubench-smoke_" + MODEL_NAME.split("/")[-1].lower()
 
+args = vf.grpo_defaults(run_name=run_name)
+
+host, port = args.vllm_server_host, args.vllm_server_port
+os.environ["OPENAI_API_KEY"] = "EMPTY"  # just like GRPOTrainer
+os.environ["OPENAI_API_BASE"] = f"http://{host}:{port}/v1"  # point to your vLLM server
+
+# τ-Bench environment (user-LLM lives inside)
+env = TauBenchEnv(
+    user_model_name=MODEL_NAME,
+    domain=DOMAIN,
+    max_turns=MAX_TURNS,
+    # max_concurrent=1,  # single-threaded for the test
+)
+
+# Keep exactly one task for the smoke-test
+# env.dataset = env.dataset.select([0])  # type: ignore
+# env.eval_dataset = env.dataset  # type: ignore
+
+# print("System prompt:\n", env.dataset[0]["prompt"][0]["content"])  # type: ignore
+
+
 # ---------------------------------------------------------------------
 # GRPO configuration (trimmed for a one-step test)
 # ---------------------------------------------------------------------
 args = GRPOConfig(
     output_dir=f"outputs/{run_name}",
     run_name=run_name,
-    per_device_train_batch_size=1,
+    per_device_train_batch_size=2,
     num_generations=2,  # GRPO minimum
     generation_batch_size=2,
     gradient_accumulation_steps=1,
