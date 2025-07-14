@@ -101,17 +101,13 @@ args = GRPOConfig(
     bf16=True,
     report_to="wandb",
     max_prompt_length=2048,
-    peft_config=peft_config
 )
 
 # ---------------------------------------------------------------------
 # Trainer
 # ---------------------------------------------------------------------
 trainer = vf.GRPOTrainer(
-    model=model,
-    processing_class=tokenizer,
-    env=env,
-    args=args,
+    model=model, processing_class=tokenizer, env=env, args=args, peft_config=peft_config
 )
 
 trainer.train()
