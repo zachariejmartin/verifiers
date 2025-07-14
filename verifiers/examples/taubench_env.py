@@ -16,6 +16,8 @@ Prerequisites
    uv run verifiers/inference/vllm_server.py \
        --model 'Qwen/Qwen2.5-7B-Instruct' \
        --port 8000
+       --enable-auto-tool-choice
+       --tool-call-parser
 
 2. All worker processes must see
 
@@ -71,6 +73,7 @@ env = TauBenchEnv(
     user_model_name=MODEL_NAME,
     domain=DOMAIN,
     max_turns=MAX_TURNS,
+    auto_tool_choice=True,
     # max_concurrent=1,  # single-threaded for the test
 )
 

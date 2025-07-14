@@ -68,6 +68,7 @@ class TauBenchEnv(MultiTurnEnv):
             List[int] | None
         ) = None,  # TODO: pass the number of tasks you want to run
         max_turns: int = 10,
+        auto_tool_choice: bool = False,
         **kwargs: Any,
     ):
         if domain not in self.SUPPORTED_DOMAINS:
@@ -78,6 +79,9 @@ class TauBenchEnv(MultiTurnEnv):
         # while the assistant still runs on vLLM / local GPUs.
         self._user_model_name = user_model_name
         self._user_strategy = "llm"
+
+        # Whether to use the new "auto" mode
+        self._auto_tool_choice = auto_tool_choice
 
         # Persist parameters for later per-rollout env construction
         self._domain = domain
@@ -233,16 +237,18 @@ class TauBenchEnv(MultiTurnEnv):
             import tiktoken  # type: ignore
 
             enc = tiktoken.get_encoding("cl100k_base")
-            n_tokens = len(enc.encode(full_txt))
+            n_prompt_tokens = len(enc.encode(system_txt))
+            n_tool_tokens = len(enc.encode(tool_txt))
+            n_total_tokens = len(enc.encode(full_txt))
         except Exception:
             # crude fallback – still useful as an order-of-magnitude hint
-            n_tokens = len(full_txt.split())
+            n_total_tokens = len(full_txt.split())
 
         logger.info(
             "TauBenchEnv: %s prompt tokens + %s tool tokens ≈ %s total tokens",
-            len(system_txt),
-            len(tool_txt),
-            n_tokens,
+            n_prompt_tokens,
+            n_tool_tokens,
+            n_total_tokens,
         )
 
     def _message_to_action(self, message: Dict[str, Any]) -> Action:
