@@ -125,6 +125,7 @@ class TauBenchEnv(MultiTurnEnv):
             domain,
             len(self._tasks),
         )
+        self._log_prompt_token_stats()
 
     # ------------------------------------------------------------------
     # MultiTurnEnv abstract methods
@@ -217,6 +218,27 @@ class TauBenchEnv(MultiTurnEnv):
     # ------------------------------------------------------------------
     # Convenience helpers (non-mandatory for MultiTurnEnv)
     # ------------------------------------------------------------------
+
+    def _log_prompt_token_stats(self) -> None:
+        """
+        Log the number of tokens the assistant will see **before** the first
+        user turn: wiki + system instructions + tool descriptions.
+        Uses `tiktoken` if available, otherwise falls back to whitespace split.
+        """
+        system_txt = f"{self._wiki}\n{TAU_BENCH_PROMPT}"
+        tool_txt = json.dumps(self._tools_info, ensure_ascii=False)
+        full_txt = f"{system_txt}\n{tool_txt}"
+
+        try:
+            import tiktoken  # type: ignore
+
+            enc = tiktoken.get_encoding("cl100k_base")
+            n_tokens = len(enc.encode(full_txt))
+        except Exception:
+            # crude fallback – still useful as an order-of-magnitude hint
+            n_tokens = len(full_txt.split())
+
+        logger.info("TauBenchEnv prompt (system + tools) ≈ %s tokens", n_tokens)
 
     def _message_to_action(self, message: Dict[str, Any]) -> Action:
         """Convert assistant message to τ-Bench Action, following ToolCallingAgent logic."""
