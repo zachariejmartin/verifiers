@@ -238,7 +238,12 @@ class TauBenchEnv(MultiTurnEnv):
             # crude fallback – still useful as an order-of-magnitude hint
             n_tokens = len(full_txt.split())
 
-        logger.info("TauBenchEnv prompt (system + tools) ≈ %s tokens", n_tokens)
+        logger.info(
+            "TauBenchEnv: %s prompt tokens + %s tool tokens ≈ %s total tokens",
+            len(system_txt),
+            len(tool_txt),
+            n_tokens,
+        )
 
     def _message_to_action(self, message: Dict[str, Any]) -> Action:
         """Convert assistant message to τ-Bench Action, following ToolCallingAgent logic."""

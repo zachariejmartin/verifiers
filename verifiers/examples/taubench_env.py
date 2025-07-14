@@ -84,6 +84,8 @@ env = TauBenchEnv(
 # ---------------------------------------------------------------------
 # GRPO configuration (trimmed for a one-step test)
 # ---------------------------------------------------------------------
+peft_config = vf.lora_defaults()
+
 args = GRPOConfig(
     output_dir=f"outputs/{run_name}",
     run_name=run_name,
@@ -99,6 +101,7 @@ args = GRPOConfig(
     bf16=True,
     report_to="wandb",
     max_prompt_length=2048,
+    peft_config=peft_config
 )
 
 # ---------------------------------------------------------------------
