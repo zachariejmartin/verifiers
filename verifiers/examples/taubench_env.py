@@ -73,7 +73,7 @@ env = TauBenchEnv(
     user_model_name=MODEL_NAME,
     domain=DOMAIN,
     max_turns=MAX_TURNS,
-    auto_tool_choice=True,
+    auto_tool_choice=False,
     # max_concurrent=1,  # single-threaded for the test
 )
 

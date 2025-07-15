@@ -68,7 +68,6 @@ class TauBenchEnv(MultiTurnEnv):
             List[int] | None
         ) = None,  # TODO: pass the number of tasks you want to run
         max_turns: int = 10,
-        auto_tool_choice: bool = False,
         **kwargs: Any,
     ):
         if domain not in self.SUPPORTED_DOMAINS:
@@ -79,9 +78,6 @@ class TauBenchEnv(MultiTurnEnv):
         # while the assistant still runs on vLLM / local GPUs.
         self._user_model_name = user_model_name
         self._user_strategy = "llm"
-
-        # Whether to use the new "auto" mode
-        self._auto_tool_choice = auto_tool_choice
 
         # Persist parameters for later per-rollout env construction
         self._domain = domain
@@ -95,6 +91,9 @@ class TauBenchEnv(MultiTurnEnv):
             user_model=self._user_model_name,
             user_provider="openai",
         )
+        print(f"τ-Bench environment tools info:\n{tmp_env.tools_info}")
+        print(f"τ-Bench environment wiki:\n{tmp_env.wiki}")
+
         self._tasks = tmp_env.tasks  # store Task objects for dataset rows / iteration
         self._wiki: str = getattr(tmp_env, "wiki", "")
         if not self._wiki:
@@ -339,7 +338,7 @@ class TauBenchEnv(MultiTurnEnv):
 
         # First environment (user) message
         env_msg, state = self.env_response(messages, state, **kwargs)
-        print(f"env message: {env_msg}")
+        print(f"ENV MESSAGE: {env_msg}")
         messages.append(env_msg)
         completion.append(env_msg)
 
@@ -353,9 +352,9 @@ class TauBenchEnv(MultiTurnEnv):
                 sampling_args=sampling_args,
                 message_type=self.message_type,
                 tools=self._tools_info,
-                tool_choice="auto",
             )
-            print(f"asst. content: {content}")
+            # print(f"asst. content: {content}")
+            print(f"ASST. RESPONSE_OBJ: {response_obj}")
 
             # Build assistant message dict preserving any tool call schema
             assistant_msg = response_obj.choices[0].message.model_dump()
@@ -371,7 +370,7 @@ class TauBenchEnv(MultiTurnEnv):
             ):
                 assistant_msg["tool_calls"] = assistant_msg["tool_calls"][:1]
 
-            print(f"asst. msg: {assistant_msg}")
+            # print(f"asst. msg: {assistant_msg}")
 
             messages.append(assistant_msg)
             completion.append(assistant_msg)
@@ -386,7 +385,7 @@ class TauBenchEnv(MultiTurnEnv):
 
             # Environment (user) step ---------------------------------------
             env_msg, state = self.env_response(messages, state, **kwargs)
-            print(f"env message: {env_msg}")
+            print(f"ENV MESSAGE: {env_msg}")
             messages.append(env_msg)
             completion.append(env_msg)
 

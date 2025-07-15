@@ -53,37 +53,59 @@ os.environ["OPENAI_API_BASE"] = f"http://{host}:{port}/v1"  # point to your vLLM
 
 
 async def main() -> None:
-    if "OPENAI_API_KEY" not in os.environ:
-        raise EnvironmentError("Please set OPENAI_API_KEY before running the dry-run.")
+    # if "OPENAI_API_KEY" not in os.environ:
+    #     raise EnvironmentError("Please set OPENAI_API_KEY before running the dry-run.")
 
     client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
     env = TauBenchEnv(user_model_name=MODEL_NAME, domain=DOMAIN, max_turns=MAX_TURNS)
 
-    # Take the very first task from the internal HF dataset
-    row = env.get_dataset(n=1)[0]
-    prompt = row["prompt"]
-    answer = row["answer"]  # empty string – τ-Bench handles evaluation internally
+    messages = [
+        {
+            "role": "system",
+            "content": env._wiki
+        },
+        {
+            "role": "user",
+            "content": "Hi, I would like to return something."
+        }
+    ]
 
-    print("––– SYSTEM PROMPT –––")
-    print(prompt[0]["content"])
-    print("–––––––––––––––––––––\n")
-
-    completion, state = await env.rollout(
+    content, response_obj = await env.get_model_response(
+        prompt=messages,
         client=client,
-        model=ASSISTANT_MODEL,
-        prompt=prompt,
-        answer=answer,
-        # sampling_args={"temperature": 0.2},
+        model=model,
+        # sampling_args=sampling_args,
+        message_type=env.message_type,
+        tools=env._tools_info,
+        tool_choice="auto",
     )
+    print(response_obj)
 
-    print("Assistant messages:\n")
-    for msg in completion:
-        role = msg.get("role", "assistant")
-        print(f"[{role.upper()}] {msg['content']}\n")
+#     # Take the very first task from the internal HF dataset
+#     row = env.get_dataset(n=1)[0]
+#     prompt = row["prompt"]
+#     answer = row["answer"]  # empty string – τ-Bench handles evaluation internally
 
-    print("Final state:", state)
-    print("Reward from τ-Bench:", state.get("reward"))
+#     print("––– SYSTEM PROMPT –––")
+#     print(prompt[0]["content"])
+#     print("–––––––––––––––––––––\n")
+
+#     completion, state = await env.rollout(
+#         client=client,
+#         model=ASSISTANT_MODEL,
+#         prompt=prompt,
+#         answer=answer,
+#         # sampling_args={"temperature": 0.2},
+#     )
+
+#     print("Assistant messages:\n")
+#     for msg in completion:
+#         role = msg.get("role", "assistant")
+#         print(f"[{role.upper()}] {msg['content']}\n")
+
+#     print("Final state:", state)
+#     print("Reward from τ-Bench:", state.get("reward"))
 
 
 if __name__ == "__main__":
