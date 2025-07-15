@@ -1,11 +1,11 @@
-from verifiers.parsers.xml_parser import XMLParser
+from verifiers.parsers.smola_parser import SmolaParser
 
 
-class TauBenchParser(XMLParser):
-    """Parser that only cares about the <reasoning> XML tag used in TauBench prompts."""
+class TauBenchParser(SmolaParser):
+    """Parser that only cares about the <tool> XML tag used in TauBench prompts."""
 
     def __init__(self):
-        super().__init__(fields=["reasoning"])
+        super().__init__(fields=["tool"])
 
 
 __all__ = ["TauBenchParser"]
