@@ -353,8 +353,6 @@ class TauBenchEnv(MultiTurnEnv):
                 message_type=self.message_type,
                 tools=self._tools_info,
             )
-            # print(f"asst. content: {content}")
-            print(f"ASST. RESPONSE_OBJ: {response_obj}")
 
             # Build assistant message dict preserving any tool call schema
             assistant_msg = response_obj.choices[0].message.model_dump()
@@ -370,8 +368,6 @@ class TauBenchEnv(MultiTurnEnv):
             ):
                 assistant_msg["tool_calls"] = assistant_msg["tool_calls"][:1]
 
-            # print(f"asst. msg: {assistant_msg}")
-
             messages.append(assistant_msg)
             completion.append(assistant_msg)
 
@@ -385,7 +381,6 @@ class TauBenchEnv(MultiTurnEnv):
 
             # Environment (user) step ---------------------------------------
             env_msg, state = self.env_response(messages, state, **kwargs)
-            print(f"ENV MESSAGE: {env_msg}")
             messages.append(env_msg)
             completion.append(env_msg)
 

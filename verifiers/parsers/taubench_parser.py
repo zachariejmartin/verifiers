@@ -5,7 +5,7 @@ class TauBenchParser(SmolaParser):
     """Parser that only cares about the <tool> XML tag used in TauBench prompts."""
 
     def __init__(self):
-        super().__init__(fields=["tool"])
+        super().__init__(fields=["tool_call"])
 
 
 __all__ = ["TauBenchParser"]
