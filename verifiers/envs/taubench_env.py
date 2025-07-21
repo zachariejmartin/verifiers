@@ -368,8 +368,11 @@ class TauBenchEnv(MultiTurnEnv):
             ):
                 assistant_msg["tool_calls"] = assistant_msg["tool_calls"][:1]
 
-            messages.append(assistant_msg)
-            completion.append(assistant_msg)
+            # asst. message potentially with <reasoning> tag
+            asst_to_env_msg = self.llm_parser.clean_assistant_message(assistant_msg)
+
+            messages.append(asst_to_env_msg)  # what τ-Bench sees
+            completion.append(assistant_msg)  # what GRPO/Rubrics keep for reward
 
             # TODO: fix this
             # state.setdefault("responses", []).append(response_obj)
