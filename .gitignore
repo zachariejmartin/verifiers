@@ -38,6 +38,7 @@ wip/
 old/
 scripts/
 notebooks/
+verifiers/examples/taubench_dry_run.py
 
 # notes
 FLOW.md
