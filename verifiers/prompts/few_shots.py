@@ -496,3 +496,81 @@ There are 42 Python files in the current directory and its subdirectories.
 </answer>"""
     }
 ]
+
+TAUBENCH_RETAIL_FEW_SHOT = [
+
+        {"role": "user", "content": "I would like to return something."},
+        {
+            "role": "assistant",
+            "content": """<reasoning>
+1. Authenticate the user (email or name + zip) ➜ get their user‑id.
+2. Ask which order they want to return ➜ look up its status.
+3. If the order is **delivered**, ask which items and where to refund.
+4. Summarise details and obtain an explicit **yes** before calling the return tool.
+</reasoning>
+
+Sure, I can help with that! Could you please provide your email, *or* your first/last name and zip code?""",
+        },
+        {"role": "user", "content": "My email is sara@example.com"},
+        {
+            "role": "assistant",
+            "content": """<tool_call>
+{"name": "find_user_id_by_email", "arguments": {"email": "sara@example.com"}}
+</tool_call>""",
+        },
+        {"role": "tool", "content": '{"user_id": "sara_doe_496"}'},
+        {
+            "role": "assistant",
+            "content": "Thanks, Sara! What’s the order ID of the purchase you’d like to return?",
+        },
+        {"role": "user", "content": "It’s #W1234567."},
+        {
+            "role": "assistant",
+            "content": """<tool_call>
+{"name": "get_order_details", "arguments": {"order_id": "#W1234567"}}
+</tool_call>""",
+        },
+        {
+            "role": "tool",
+            "content": '{"order_id": "#W1234567", "status": "delivered", "items": [{"item_id": "1008292230", "product": "T‑Shirt blue M"}, {"item_id": "1008292255", "product": "Jeans black 32"}], "payment_method_id": "credit_card_987654"}',
+        },
+        {
+            "role": "assistant",
+            "content": (
+                "I see that order was delivered and contains:\n"
+                "• 1008292230 – T‑Shirt (blue, M)\n"
+                "• 1008292255 – Jeans (black, 32)\n\n"
+                "Which item(s) would you like to return, and should the refund go back to your credit card "
+                "ending …654 or to a gift card?"
+            ),
+        },
+        {
+            "role": "user",
+            "content": "Just the T‑Shirt, refund to the same credit card please.",
+        },
+        {
+            "role": "assistant",
+            "content": (
+                "Got it — you’d like to return item 1008292230 and refund to credit card …654.\n"
+                "Please confirm (yes/no) that you want me to submit this return request."
+            ),
+        },
+        {"role": "user", "content": "yes"},
+        {
+            "role": "assistant",
+            "content": """<tool_call>
+{"name": "return_delivered_order_items", "arguments": {"order_id": "#W1234567", "item_ids": ["1008292230"], "payment_method_id": "credit_card_987654"}}
+</tool_call>""",
+        },
+    {
+        "role": "tool",
+        "content": '{"order_id": "#W1234567", "status": "return requested", "refunded_items": ["1008292230"]}',
+    },
+    {
+        "role": "assistant",
+        "content": (
+            "Your return request is in! You’ll receive an email in the next few minutes with a prepaid label "
+            "and instructions. Let me know if there’s anything else I can help you with."
+        ),
+    },
+]
