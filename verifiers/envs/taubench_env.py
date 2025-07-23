@@ -223,6 +223,16 @@ class TauBenchEnv(MultiTurnEnv):
     # Convenience helpers (non-mandatory for MultiTurnEnv)
     # ------------------------------------------------------------------
 
+    def _format_tool_descriptions(self) -> str:
+        lines = []
+        for t in self._tools_info:  # list of dicts
+            lines.append(f"\n{t['name']}: {t['description']}")
+            if t.get("parameters"):
+                lines.append("Args:")
+                for k, spec in t["parameters"].items():
+                    lines.append(f"  • {k}: {spec['description']}")
+        return "\n".join(lines)
+
     def _log_prompt_token_stats(self) -> None:
         """
         Log the number of tokens the assistant will see **before** the first
@@ -286,10 +296,15 @@ class TauBenchEnv(MultiTurnEnv):
     def _build_hf_datasets(self):
         """Convert τ-Bench Task objects into minimal HF datasets."""
 
+        tool_txt = self._format_tool_descriptions()
+
         def _row(idx, task):  # type: ignore[annassign]
             return {
                 "prompt": [
-                    {"role": "system", "content": f"{self._wiki}\n{TAU_BENCH_PROMPT}"},
+                    {
+                        "role": "system",
+                        "content": f"{self._wiki}\n{TAU_BENCH_PROMPT.format(tool_txt=tool_txt)}",
+                    },
                 ],
                 "answer": "",  # reward is computed by τ-Bench
                 "task": str(idx),  # string task identifier passed to rollout
