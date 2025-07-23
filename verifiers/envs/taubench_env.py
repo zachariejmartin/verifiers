@@ -69,10 +69,14 @@ class TauBenchEnv(MultiTurnEnv):
         ) = None,  # TODO: pass the number of tasks you want to run
         max_turns: int = 10,
         few_shot: List[Dict[str, str]] | None = None,
+        tools_to_remove: List[str] = [],
         **kwargs: Any,
     ):
         if domain not in self.SUPPORTED_DOMAINS:
             raise ValueError(f"domain must be one of {self.SUPPORTED_DOMAINS}")
+
+        # Use this to remove tools from the wrapped env being populated in the tool desc pass to model
+        self._tools_to_remove = tools_to_remove
 
         # Only allowing for OpenAI model that τ-Bench supports out-of-the-box.
         # Using a remote model for the user keeps the training stack simple
@@ -224,13 +228,31 @@ class TauBenchEnv(MultiTurnEnv):
     # ------------------------------------------------------------------
 
     def _format_tool_descriptions(self) -> str:
-        lines = []
-        for t in self._tools_info:  # list of dicts
-            lines.append(f"\n{t['name']}: {t['description']}")
-            if t.get("parameters"):
-                lines.append("Args:")
-                for k, spec in t["parameters"].items():
-                    lines.append(f"  • {k}: {spec['description']}")
+        """Return a plain-text list of tools derived from τ-Bench metadata.
+
+        Each ``tool`` element in ``self._tools_info`` follows the OpenAI
+        function-calling schema: ``{"type": "function", "function": {...}}``.
+        We expose *name*, *description* and argument list so that the model
+        can craft its own ``<tool_call>``` JSON.
+        """
+
+        lines: List[str] = []
+        for tool in self._tools_info:
+            fn = tool.get("function", {})  # defensive lookup
+            name = fn.get("name")
+            if name is None or name in self._tools_to_remove:
+                continue
+
+            desc = fn.get("description", "")
+            lines.append(f"\n{name}: {desc}")
+
+            props = fn.get("parameters", {}).get("properties", {})
+            if props:
+                lines.append("Arguments:")
+                for arg_name, spec in props.items():
+                    arg_desc = spec.get("description", "")
+                    lines.append(f"  • {arg_name}: {arg_desc}")
+
         return "\n".join(lines)
 
     def _log_prompt_token_stats(self) -> None:
