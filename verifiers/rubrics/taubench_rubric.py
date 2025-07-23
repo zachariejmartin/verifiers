@@ -35,11 +35,12 @@ def planning_reward(
         parser = TauBenchParser()
 
     for msg in completion:
+        # If the first assistant message contains <reasoning>
         if msg.get("role") == "assistant":
             parsed = parser.parse(msg["content"])
             if hasattr(parsed, "reasoning") and parsed.reasoning is not None:
                 return 1.0
-        return 0.0
+            return 0.0
 
 
 class TauBenchRubric(Rubric):

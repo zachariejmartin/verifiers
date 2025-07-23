@@ -68,6 +68,7 @@ class TauBenchEnv(MultiTurnEnv):
             List[int] | None
         ) = None,  # TODO: pass the number of tasks you want to run
         max_turns: int = 10,
+        few_shot: List[Dict[str, str]] | None = None,
         **kwargs: Any,
     ):
         if domain not in self.SUPPORTED_DOMAINS:
@@ -111,7 +112,7 @@ class TauBenchEnv(MultiTurnEnv):
             max_turns=max_turns,
             message_type="chat",
             system_prompt=None,  # we embed system in dataset rows explicitly
-            few_shot=[],
+            few_shot=few_shot or [],
             mask_env_response=True,
             **kwargs,
         )
@@ -252,22 +253,35 @@ class TauBenchEnv(MultiTurnEnv):
 
     def _message_to_action(self, message: Dict[str, Any]) -> Action:
         """Convert assistant message to τ-Bench Action, following ToolCallingAgent logic."""
-        if (
-            "tool_calls" in message
-            and message["tool_calls"] is not None
-            and len(message["tool_calls"]) > 0
-            and message["tool_calls"][0]["function"] is not None
-        ):
+        # Use manual XML parsing instead of vLLM auto-tool schema
+        parsed = self.llm_parser.parse(message["content"])
 
-            tool_call = message["tool_calls"][0]
-            return Action(
-                name=tool_call["function"]["name"],
-                kwargs=json.loads(tool_call["function"]["arguments"]),
-            )
-        else:
-            return Action(
-                name=RESPOND_ACTION_NAME, kwargs={"content": message["content"]}
-            )
+        tool_json_str = None
+        # Support both <tool_call> and <tool> aliases
+        if hasattr(parsed, "tool_call") and parsed.tool_call is not None:
+            tool_json_str = parsed.tool_call
+        elif hasattr(parsed, "tool") and parsed.tool is not None:
+            tool_json_str = parsed.tool
+
+        if tool_json_str:
+            try:
+                command = json.loads(tool_json_str)
+                return Action(
+                    name=command.get("name", "unknown"),
+                    kwargs=command.get("arguments", {}),
+                )
+            except Exception as err:
+                # Malformed JSON – surface error back to user
+                return Action(
+                    name=RESPOND_ACTION_NAME,
+                    kwargs={"content": f"ERROR: invalid tool JSON – {err}"},
+                )
+
+        # No tool call found – treat as normal respond action
+        return Action(
+            name=RESPOND_ACTION_NAME,
+            kwargs={"content": self.llm_parser.strip_private_tags(message["content"])},
+        )
 
     def _build_hf_datasets(self):
         """Convert τ-Bench Task objects into minimal HF datasets."""
@@ -351,28 +365,25 @@ class TauBenchEnv(MultiTurnEnv):
                 model=model,
                 sampling_args=sampling_args,
                 message_type=self.message_type,
-                tools=self._tools_info,
             )
 
-            # Build assistant message dict preserving any tool call schema
-            assistant_msg = response_obj.choices[0].message.model_dump()
+            assistant_msg_full = response_obj.choices[0].message.model_dump()
 
-            # Ensure content is a string (OpenAI requires non-null)
-            if assistant_msg.get("content") is None:
-                assistant_msg["content"] = ""
+            # Ensure content is a string
+            if assistant_msg_full.get("content") is None:
+                assistant_msg_full["content"] = ""
 
-            # If the assistant invoked multiple tool calls, keep only the first
-            if (
-                assistant_msg.get("tool_calls") is not None
-                and len(assistant_msg["tool_calls"]) > 1
-            ):
-                assistant_msg["tool_calls"] = assistant_msg["tool_calls"][:1]
+            # Sanitize before sending to env/user
+            assistant_msg_public = self.llm_parser.clean_assistant_message(
+                assistant_msg_full
+            )
 
-            # asst. message potentially with <reasoning> tag
-            asst_to_env_msg = self.llm_parser.clean_assistant_message(assistant_msg)
+            # Append to logs
+            messages.append(assistant_msg_public)
+            completion.append(assistant_msg_full)
 
-            messages.append(asst_to_env_msg)  # what τ-Bench sees
-            completion.append(assistant_msg)  # what GRPO/Rubrics keep for reward
+            # tool_calls list will never be populated in manual mode, but keep trimming if present
+            assistant_msg = assistant_msg_public  # for local variables following code
 
             # TODO: fix this
             # state.setdefault("responses", []).append(response_obj)

@@ -13,8 +13,8 @@ class TauBenchParser(SmolaParser):
     """
 
     def __init__(self) -> None:
-        # We only need to keep the reasoning tag for reward purposes.
-        super().__init__(fields=["reasoning"])
+        # Capture both private reasoning blocks and XML-wrapped tool calls
+        super().__init__(fields=["reasoning", ("tool", "tool_call")])
 
     # ------------------------------------------------------------------ #
     # Public utilities
@@ -40,7 +40,6 @@ class TauBenchParser(SmolaParser):
         if isinstance(cleaned.get("content"), str):
             cleaned["content"] = self.strip_private_tags(cleaned["content"])
         return cleaned
-
 
 
 __all__ = ["TauBenchParser"]
