@@ -228,32 +228,19 @@ class TauBenchEnv(MultiTurnEnv):
     # ------------------------------------------------------------------
 
     def _format_tool_descriptions(self) -> str:
-        """Return a plain-text list of tools derived from τ-Bench metadata.
+        """Return the tools in their original JSON schema."""
+        # Optionally remove tools
+        filtered_tools = [
+            t
+            for t in self._tools_info
+            if t.get("function", {}).get("name") not in self._tools_to_remove
+        ]
 
-        Each ``tool`` element in ``self._tools_info`` follows the OpenAI
-        function-calling schema: ``{"type": "function", "function": {...}}``.
-        We expose *name*, *description* and argument list so that the model
-        can craft its own ``<tool_call>``` JSON.
-        """
-
-        lines: List[str] = []
-        for tool in self._tools_info:
-            fn = tool.get("function", {})  # defensive lookup
-            name = fn.get("name")
-            if name is None or name in self._tools_to_remove:
-                continue
-
-            desc = fn.get("description", "")
-            lines.append(f"\n{name}: {desc}")
-
-            props = fn.get("parameters", {}).get("properties", {})
-            if props:
-                lines.append("Arguments:")
-                for arg_name, spec in props.items():
-                    arg_desc = spec.get("description", "")
-                    lines.append(f"  • {arg_name}: {arg_desc}")
-
-        return "\n".join(lines)
+        return json.dumps(
+            filtered_tools,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
 
     def _log_prompt_token_stats(self) -> None:
         """
