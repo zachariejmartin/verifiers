@@ -14,7 +14,7 @@ class TauBenchParser(SmolaParser):
 
     def __init__(self) -> None:
         # Capture both private reasoning blocks and XML-wrapped tool calls
-        super().__init__(fields=["reasoning", ("tool", "tool_call")])
+        super().__init__(fields=["reasoning"])
 
     # ------------------------------------------------------------------ #
     # Public utilities
