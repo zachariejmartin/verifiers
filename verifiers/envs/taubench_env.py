@@ -107,6 +107,9 @@ class TauBenchEnv(MultiTurnEnv):
         self._tools_info = getattr(tmp_env, "tools_info", None)
         if self._tools_info is None:
             raise ValueError("No tools provided to τ-Bench environment.")
+        self._few_shot = ""
+        if few_shot:
+            self._few_shot = f"Here are some examples:\n{few_shot}"
 
         hf_ds_train, hf_ds_eval = self._build_hf_datasets()
 
@@ -312,7 +315,7 @@ class TauBenchEnv(MultiTurnEnv):
                 "prompt": [
                     {
                         "role": "system",
-                        "content": f"{self._wiki}\n{TAU_BENCH_PROMPT.format(tool_txt=tool_txt)}\nHere are some examples:\n{self.few_shot}",
+                        "content": f"{self._wiki}\n{TAU_BENCH_PROMPT.format(tool_txt=tool_txt)}\n{self._few_shot}",
                     },
                 ],
                 "answer": "",  # reward is computed by τ-Bench
