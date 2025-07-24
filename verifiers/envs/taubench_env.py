@@ -96,8 +96,8 @@ class TauBenchEnv(MultiTurnEnv):
             user_model=self._user_model_name,
             user_provider="openai",
         )
-        print(f"τ-Bench environment tools info:\n{tmp_env.tools_info}")
-        print(f"τ-Bench environment wiki:\n{tmp_env.wiki}")
+        # print(f"τ-Bench environment tools info:\n{tmp_env.tools_info}")
+        # print(f"τ-Bench environment wiki:\n{tmp_env.wiki}")
 
         self._tasks = tmp_env.tasks  # store Task objects for dataset rows / iteration
         self._wiki: str = getattr(tmp_env, "wiki", "")
@@ -312,7 +312,7 @@ class TauBenchEnv(MultiTurnEnv):
                 "prompt": [
                     {
                         "role": "system",
-                        "content": f"{self._wiki}\n{TAU_BENCH_PROMPT.format(tool_txt=tool_txt)}",
+                        "content": f"{self._wiki}\n{TAU_BENCH_PROMPT.format(tool_txt=tool_txt)}\nHere are some examples:\n{self.few_shot}",
                     },
                 ],
                 "answer": "",  # reward is computed by τ-Bench
