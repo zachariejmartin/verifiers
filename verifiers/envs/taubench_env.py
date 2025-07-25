@@ -391,6 +391,7 @@ class TauBenchEnv(MultiTurnEnv):
 
             assistant_msg_public = assistant_msg_full.copy()
 
+            xml_call = None
             if assistant_msg_public.get("tool_calls"):
                 # Keep only the first tool call (τ-Bench supports 1-shot actions)
                 assistant_msg_public["tool_calls"] = assistant_msg_public["tool_calls"][
@@ -409,21 +410,20 @@ class TauBenchEnv(MultiTurnEnv):
                     )
                     + "\n</tool_call>"
                 )
-                assistant_msg_public["content"] = xml_call
 
-            # Strip private reasoning tags from `content` but keep tool call XML
+            # Strip private reasoning tags from `content`
             assistant_msg_public = self.llm_parser.clean_assistant_message(
                 assistant_msg_public
             )
 
-            # Append to logs
+            # This is what user/env sees: openai spec with clean content
             messages.append(assistant_msg_public)
-            completion.append(assistant_msg_full)
 
-            assistant_msg = assistant_msg_public  # alias
+            # This is what we use for RL signal. If assistant call a tool, use
+            # <tool_call>{...}</tool_call> for RL; else we use <reasoning>...</reasoning> + plain text
+            # TODO: This is tightly coupled to vLLM hermes parser
+            completion.append(xml_call if xml_call else assistant_msg_full)
 
-            # TODO: fix this
-            # state.setdefault("responses", []).append(response_obj)
             turn += 1
 
             # Check termination after assistant reply
