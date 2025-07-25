@@ -415,8 +415,12 @@ class TauBenchEnv(MultiTurnEnv):
             assistant_msg_public = self.llm_parser.clean_assistant_message(
                 assistant_msg_public
             )
+            # TODO: fix this
+            print(f"ASST MESSAGE: {assistant_msg_public}")
 
-            # This is what user/env sees: openai spec with clean content
+            # This is what asst./user/env sees: openai spec with clean content
+            # TODO: parse INSIDE message to action
+            # we can put xml in here too, the only thing we can't have is xml if there isn't a tool call
             messages.append(assistant_msg_public)
 
             # This is what we use for RL signal. If assistant call a tool, use
@@ -436,6 +440,7 @@ class TauBenchEnv(MultiTurnEnv):
 
             # Environment (user) step ---------------------------------------
             env_msg, state = self.env_response(messages, state, **kwargs)
+            print(f"ENV MESSAGE: {env_msg}")
             messages.append(env_msg)
             completion.append(env_msg)
 
