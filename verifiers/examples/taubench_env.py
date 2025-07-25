@@ -13,8 +13,8 @@ Prerequisites
 1. A vLLM server exposing an OpenAI-compatible endpoint, e.g.
 
    CUDA_VISIBLE_DEVICES=0,1 uv run verifiers/inference/vllm_server.py \
-    --model 'Qwen/Qwen2.5-7B-Instruct' \
-    --tensor-parallel-size 4 \
+    --model 'Qwen/Qwen2.5-3B-Instruct' \
+    --tensor-parallel-size 2 \
     --max-model-len 8192 \
     --dtype bfloat16 \
     --gpu-memory-utilization 0.9 \
