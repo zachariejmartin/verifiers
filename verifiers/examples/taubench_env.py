@@ -12,12 +12,17 @@ Prerequisites
 -------------
 1. A vLLM server exposing an OpenAI-compatible endpoint, e.g.
 
-   CUDA_VISIBLE_DEVICES=0,1 \
-   uv run verifiers/inference/vllm_server.py \
-       --model 'Qwen/Qwen2.5-7B-Instruct' \
-       --port 8000
-       --enable-auto-tool-choice
-       --tool-call-parser hermes
+   CUDA_VISIBLE_DEVICES=0,1 uv run verifiers/inference/vllm_server.py \
+    --model 'Qwen/Qwen2.5-7B-Instruct' \
+    --tensor-parallel-size 4 \
+    --max-model-len 8192 \
+    --dtype bfloat16 \
+    --gpu-memory-utilization 0.9 \
+    --enable-prefix-caching \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --enable-auto-tool-choice \
+    --tool-call-parser hermes
 
 2. All worker processes must see
 
@@ -43,7 +48,7 @@ from verifiers.prompts.few_shots import TAUBENCH_RETAIL_FEW_SHOT
 # ---------------------------------------------------------------------
 # Model & environment configuration
 # ---------------------------------------------------------------------
-MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"  # must be an alias served by vLLM
+MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"  # must be an alias served by vLLM
 DOMAIN = "retail"
 MAX_TURNS = 20  # stop after 20 dialogue turns
 
@@ -52,7 +57,7 @@ MAX_TURNS = 20  # stop after 20 dialogue turns
 # ---------------------------------------------------------------------
 model_kwargs = dict(
     torch_dtype="bfloat16",  # or torch.float16 / bf16 etc.
-    attn_implementation="sdpa",  # <- turn Flash-Attn OFF
+    attn_implementation="sdpa",  # TODO: <- turn Flash-Attn OFF
     use_cache=False,
 )
 
@@ -104,7 +109,7 @@ args = GRPOConfig(
     save_strategy="no",
     bf16=True,
     report_to="wandb",
-    max_prompt_length=2048,
+    max_prompt_length=8192,
 )
 
 # ---------------------------------------------------------------------
