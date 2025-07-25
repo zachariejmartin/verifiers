@@ -1,5 +1,5 @@
 """
-verifiers/examples/taubench_single_sample_train.py
+verifiers/examples/taubench_env.py
 --------------------------------------------------
 End-to-end GRPO smoke-test for τ-Bench (retail).
 
@@ -12,22 +12,21 @@ Prerequisites
 -------------
 1. A vLLM server exposing an OpenAI-compatible endpoint, e.g.
 
-   CUDA_VISIBLE_DEVICES=0 \
+   CUDA_VISIBLE_DEVICES=0,1 \
    uv run verifiers/inference/vllm_server.py \
        --model 'Qwen/Qwen2.5-7B-Instruct' \
        --port 8000
        --enable-auto-tool-choice
-       --tool-call-parser
+       --tool-call-parser hermes
 
 2. All worker processes must see
 
    export OPENAI_API_BASE=http://127.0.0.1:8000/v1
    export OPENAI_API_KEY=dummy-key          # any non-empty string
 
-3. Launch with one or many GPUs, e.g.
+3. Launch 
 
-   CUDA_VISIBLE_DEVICES=1 \
-   accelerate launch verifiers/examples/taubench_single_sample_train.py
+   CUDA_VISIBLE_DEVICES=2,3 accelerate launch --config-file configs/zero3.yaml --num-processes 2 verifiers/examples/taubench_env.py
 """
 
 from __future__ import annotations
@@ -39,11 +38,12 @@ from datasets import Dataset
 import verifiers as vf
 from verifiers.envs.taubench_env import TauBenchEnv
 from verifiers.trainers.grpo_config import GRPOConfig
+from verifiers.prompts.few_shots import TAUBENCH_RETAIL_FEW_SHOT
 
 # ---------------------------------------------------------------------
 # Model & environment configuration
 # ---------------------------------------------------------------------
-MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"  # must be an alias served by vLLM
+MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"  # must be an alias served by vLLM
 DOMAIN = "retail"
 MAX_TURNS = 20  # stop after 20 dialogue turns
 
@@ -73,15 +73,16 @@ env = TauBenchEnv(
     user_model_name=MODEL_NAME,
     domain=DOMAIN,
     max_turns=MAX_TURNS,
-    auto_tool_choice=False,
-    # max_concurrent=1,  # single-threaded for the test
+    few_shot=TAUBENCH_RETAIL_FEW_SHOT,
+    tools_to_remove=["think"],
+    max_concurrent=1,  # single-threaded for the test
 )
 
 # Keep exactly one task for the smoke-test
-# env.dataset = env.dataset.select([0])  # type: ignore
-# env.eval_dataset = env.dataset  # type: ignore
+env.dataset = env.dataset.select([0])  # type: ignore
+env.eval_dataset = env.dataset  # type: ignore
 
-# print("System prompt:\n", env.dataset[0]["prompt"][0]["content"])  # type: ignore
+print("System prompt:\n", env.dataset[0]["prompt"][0]["content"])  # type: ignore
 
 
 # ---------------------------------------------------------------------
