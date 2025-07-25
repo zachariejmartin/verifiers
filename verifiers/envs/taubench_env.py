@@ -422,7 +422,11 @@ class TauBenchEnv(MultiTurnEnv):
             # This is what we use for RL signal. If assistant call a tool, use
             # <tool_call>{...}</tool_call> for RL; else we use <reasoning>...</reasoning> + plain text
             # TODO: This is tightly coupled to vLLM hermes parser
-            completion.append(xml_call if xml_call else assistant_msg_full)
+            completion.append(
+                {"role": "assistant", "content": xml_call}
+                if xml_call
+                else assistant_msg_full
+            )
 
             turn += 1
 
