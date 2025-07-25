@@ -281,10 +281,12 @@ class TauBenchEnv(MultiTurnEnv):
                 kwargs=json.loads(tool_call["function"]["arguments"]),
             )
 
-        # Fallback: plain respond action (strip private tags just in case)
+        asst_msg_to_env = self.llm_parser.strip_private_tags(message["content"])
+        print(f"ASST MSG TO ENV: {asst_msg_to_env}")
+        
         return Action(
             name=RESPOND_ACTION_NAME,
-            kwargs={"content": self.llm_parser.strip_private_tags(message["content"])},
+            kwargs={"content": asst_msg_to_env},
         )
 
     def _build_hf_datasets(self):
@@ -379,26 +381,27 @@ class TauBenchEnv(MultiTurnEnv):
                 tools=self._tools_info,  # Pass full tool schema for auto-parsing
             )
 
-            assistant_msg_full = response_obj.choices[0].message.model_dump()
+            asst_msg = response_obj.choices[0].message.model_dump()
+            print(f"ASST FULL MESSAGE: {asst_msg}")
 
             # Ensure content is a string
-            if assistant_msg_full.get("content") is None:
-                assistant_msg_full["content"] = ""
+            # if assistant_msg_full.get("content") is None:
+            #     assistant_msg_full["content"] = ""
 
             # ------------------------------------------------------------------
             # Build the *public* assistant message
             # ------------------------------------------------------------------
 
-            assistant_msg_public = assistant_msg_full.copy()
+            # assistant_msg_public = assistant_msg_full.copy()
 
             xml_call = None
-            if assistant_msg_public.get("tool_calls"):
+            if asst_msg.get("tool_calls"):
                 # Keep only the first tool call (τ-Bench supports 1-shot actions)
-                assistant_msg_public["tool_calls"] = assistant_msg_public["tool_calls"][
+                asst_msg["tool_calls"] = asst_msg["tool_calls"][
                     :1
                 ]
 
-                fn_call = assistant_msg_public["tool_calls"][0]["function"]
+                fn_call = asst_msg["tool_calls"][0]["function"]
                 # Convert to XML wrapper so downstream rubrics / logging stay unchanged
                 xml_call = (
                     "<tool_call>\n"
@@ -412,16 +415,13 @@ class TauBenchEnv(MultiTurnEnv):
                 )
 
             # Strip private reasoning tags from `content`
-            assistant_msg_public = self.llm_parser.clean_assistant_message(
-                assistant_msg_public
-            )
-            # TODO: fix this
-            print(f"ASST MESSAGE: {assistant_msg_public}")
+            # assistant_msg_public = self.llm_parser.clean_assistant_message(
+            #     assistant_msg_public
+            # )
 
             # This is what asst./user/env sees: openai spec with clean content
-            # TODO: parse INSIDE message to action
             # we can put xml in here too, the only thing we can't have is xml if there isn't a tool call
-            messages.append(assistant_msg_public)
+            messages.append(asst_msg)
 
             # This is what we use for RL signal. If assistant call a tool, use
             # <tool_call>{...}</tool_call> for RL; else we use <reasoning>...</reasoning> + plain text
@@ -429,7 +429,7 @@ class TauBenchEnv(MultiTurnEnv):
             completion.append(
                 {"role": "assistant", "content": xml_call}
                 if xml_call
-                else assistant_msg_full
+                else asst_msg
             )
 
             turn += 1
