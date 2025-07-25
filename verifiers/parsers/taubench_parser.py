@@ -13,8 +13,11 @@ class TauBenchParser(SmolaParser):
     """
 
     def __init__(self) -> None:
-        # Capture both private reasoning blocks and XML-wrapped tool calls
-        super().__init__(fields=["reasoning"])
+        # Parse <reasoning> blocks (private) *and* tool call XML tags.
+        # - "reasoning" → stripped before surfacing to the user.
+        # - ("tool", "tool_call") → retained so downstream logic can
+        #   extract the first tool invocation JSON.
+        super().__init__(fields=["reasoning", ("tool", "tool_call")])
 
     # ------------------------------------------------------------------ #
     # Public utilities
@@ -25,9 +28,13 @@ class TauBenchParser(SmolaParser):
         together with their contents.  The remaining text is trimmed and
         returned unchanged.
         """
+        # Only hide *private* tags (currently just <reasoning>).  Tool tags
+        # must remain so they can be parsed and forwarded to τ-Bench.
         for canonical, alternatives in self._fields:
+            if canonical != "reasoning":
+                continue
             for tag in alternatives:
-                # lazy DOTALL to remove the whole block
+                # lazy DOTALL to remove the whole block – DOTALL so newline spans are removed too
                 text = re.sub(rf"<{tag}>\s*.*?\s*</{tag}>", "", text, flags=re.DOTALL)
         return text.strip()
 

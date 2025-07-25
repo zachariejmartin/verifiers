@@ -123,17 +123,4 @@ Think step-by-step about how to solve the user request given the policy informat
 
 First use the <reasoning> tag to think through the problem. When you need to use a tool, call the tool with the correct format. When you're ready to provide the a response to the user, use plain text.
 
-# Tools
-Here is an example of how to call a tool:
-<tool_call>
-{{
-  "name": "calculator", 
-  "args": {{
-    "expression": "math expression to calculate"
-  }}
-}}
-</tool_call>
-
-Here are the available tools:
-{tool_txt}
 """

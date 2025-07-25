@@ -231,19 +231,12 @@ class TauBenchEnv(MultiTurnEnv):
     # ------------------------------------------------------------------
 
     def _format_tool_descriptions(self) -> str:
-        """Return the tools in their original JSON schema."""
-        # Optionally remove tools
-        filtered_tools = [
-            t
-            for t in self._tools_info
-            if t.get("function", {}).get("name") not in self._tools_to_remove
-        ]
+        """(Deprecated) Kept for backward-compatibility, now returns ''.
 
-        return json.dumps(
-            filtered_tools,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
+        We no longer embed the full tool schema in the system prompt because
+        vLLM/OpenAI receive it via the `tools=[…]` argument instead.
+        """
+        return ""
 
     def _log_prompt_token_stats(self) -> None:
         """
@@ -274,32 +267,21 @@ class TauBenchEnv(MultiTurnEnv):
         )
 
     def _message_to_action(self, message: Dict[str, Any]) -> Action:
-        """Convert assistant message to τ-Bench Action, following ToolCallingAgent logic."""
-        # Use manual XML parsing instead of vLLM auto-tool schema
-        parsed = self.llm_parser.parse(message["content"])
+        """Convert assistant message to τ-Bench Action using vLLM `tool_calls`."""
 
-        tool_json_str = None
-        # Support both <tool_call> and <tool> aliases
-        if hasattr(parsed, "tool_call") and parsed.tool_call is not None:
-            tool_json_str = parsed.tool_call
-        elif hasattr(parsed, "tool") and parsed.tool is not None:
-            tool_json_str = parsed.tool
+        if (
+            "tool_calls" in message
+            and message["tool_calls"]
+            and len(message["tool_calls"]) > 0
+            and message["tool_calls"][0].get("function") is not None
+        ):
+            tool_call = message["tool_calls"][0]
+            return Action(
+                name=tool_call["function"]["name"],
+                kwargs=json.loads(tool_call["function"]["arguments"]),
+            )
 
-        if tool_json_str:
-            try:
-                command = json.loads(tool_json_str)
-                return Action(
-                    name=command.get("name", "unknown"),
-                    kwargs=command.get("arguments", {}),
-                )
-            except Exception as err:
-                # Malformed JSON – surface error back to user
-                return Action(
-                    name=RESPOND_ACTION_NAME,
-                    kwargs={"content": f"ERROR: invalid tool JSON – {err}"},
-                )
-
-        # No tool call found – treat as normal respond action
+        # Fallback: plain respond action (strip private tags just in case)
         return Action(
             name=RESPOND_ACTION_NAME,
             kwargs={"content": self.llm_parser.strip_private_tags(message["content"])},
@@ -308,7 +290,9 @@ class TauBenchEnv(MultiTurnEnv):
     def _build_hf_datasets(self):
         """Convert τ-Bench Task objects into minimal HF datasets."""
 
-        tool_txt = self._format_tool_descriptions()
+        tool_txt = (
+            ""  # tool schema now passed via vLLM `tools` param, keep prompt clean
+        )
 
         def _row(idx, task):  # type: ignore[annassign]
             return {
@@ -392,6 +376,7 @@ class TauBenchEnv(MultiTurnEnv):
                 model=model,
                 sampling_args=sampling_args,
                 message_type=self.message_type,
+                tools=self._tools_info,  # Pass full tool schema for auto-parsing
             )
 
             assistant_msg_full = response_obj.choices[0].message.model_dump()
@@ -400,17 +385,42 @@ class TauBenchEnv(MultiTurnEnv):
             if assistant_msg_full.get("content") is None:
                 assistant_msg_full["content"] = ""
 
-            # Sanitize before sending to env/user
+            # ------------------------------------------------------------------
+            # Build the *public* assistant message
+            # ------------------------------------------------------------------
+
+            assistant_msg_public = assistant_msg_full.copy()
+
+            if assistant_msg_public.get("tool_calls"):
+                # Keep only the first tool call (τ-Bench supports 1-shot actions)
+                assistant_msg_public["tool_calls"] = assistant_msg_public["tool_calls"][
+                    :1
+                ]
+
+                fn_call = assistant_msg_public["tool_calls"][0]["function"]
+                # Convert to XML wrapper so downstream rubrics / logging stay unchanged
+                xml_call = (
+                    "<tool_call>\n"
+                    + json.dumps(
+                        {
+                            "name": fn_call["name"],
+                            "arguments": json.loads(fn_call["arguments"]),
+                        }
+                    )
+                    + "\n</tool_call>"
+                )
+                assistant_msg_public["content"] = xml_call
+
+            # Strip private reasoning tags from `content` but keep tool call XML
             assistant_msg_public = self.llm_parser.clean_assistant_message(
-                assistant_msg_full
+                assistant_msg_public
             )
 
             # Append to logs
             messages.append(assistant_msg_public)
             completion.append(assistant_msg_full)
 
-            # tool_calls list will never be populated in manual mode, but keep trimming if present
-            assistant_msg = assistant_msg_public  # for local variables following code
+            assistant_msg = assistant_msg_public  # alias
 
             # TODO: fix this
             # state.setdefault("responses", []).append(response_obj)
